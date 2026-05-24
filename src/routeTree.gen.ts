@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TargetsRouteImport } from './routes/targets'
+import { Route as LifeMapRouteImport } from './routes/life-map'
 import { Route as IncomeSourcesRouteImport } from './routes/income-sources'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as AssetsRouteImport } from './routes/assets'
@@ -18,6 +19,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const TargetsRoute = TargetsRouteImport.update({
   id: '/targets',
   path: '/targets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LifeMapRoute = LifeMapRouteImport.update({
+  id: '/life-map',
+  path: '/life-map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IncomeSourcesRoute = IncomeSourcesRouteImport.update({
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
   '/income-sources': typeof IncomeSourcesRoute
+  '/life-map': typeof LifeMapRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
   '/income-sources': typeof IncomeSourcesRoute
+  '/life-map': typeof LifeMapRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,28 @@ export interface FileRoutesById {
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
   '/income-sources': typeof IncomeSourcesRoute
+  '/life-map': typeof LifeMapRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/assets' | '/budget' | '/income-sources' | '/targets'
+  fullPaths:
+    | '/'
+    | '/assets'
+    | '/budget'
+    | '/income-sources'
+    | '/life-map'
+    | '/targets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/assets' | '/budget' | '/income-sources' | '/targets'
-  id: '__root__' | '/' | '/assets' | '/budget' | '/income-sources' | '/targets'
+  to: '/' | '/assets' | '/budget' | '/income-sources' | '/life-map' | '/targets'
+  id:
+    | '__root__'
+    | '/'
+    | '/assets'
+    | '/budget'
+    | '/income-sources'
+    | '/life-map'
+    | '/targets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +98,7 @@ export interface RootRouteChildren {
   AssetsRoute: typeof AssetsRoute
   BudgetRoute: typeof BudgetRoute
   IncomeSourcesRoute: typeof IncomeSourcesRoute
+  LifeMapRoute: typeof LifeMapRoute
   TargetsRoute: typeof TargetsRoute
 }
 
@@ -86,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/targets'
       fullPath: '/targets'
       preLoaderRoute: typeof TargetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/life-map': {
+      id: '/life-map'
+      path: '/life-map'
+      fullPath: '/life-map'
+      preLoaderRoute: typeof LifeMapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/income-sources': {
@@ -124,6 +154,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssetsRoute: AssetsRoute,
   BudgetRoute: BudgetRoute,
   IncomeSourcesRoute: IncomeSourcesRoute,
+  LifeMapRoute: LifeMapRoute,
   TargetsRoute: TargetsRoute,
 }
 export const routeTree = rootRouteImport
