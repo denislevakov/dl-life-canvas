@@ -9,8 +9,44 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TargetsRouteImport } from './routes/targets'
+import { Route as LifeMapRouteImport } from './routes/life-map'
+import { Route as IncomeSourcesRouteImport } from './routes/income-sources'
+import { Route as FreedomRouteImport } from './routes/freedom'
+import { Route as BudgetRouteImport } from './routes/budget'
+import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TargetsRoute = TargetsRouteImport.update({
+  id: '/targets',
+  path: '/targets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LifeMapRoute = LifeMapRouteImport.update({
+  id: '/life-map',
+  path: '/life-map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IncomeSourcesRoute = IncomeSourcesRouteImport.update({
+  id: '/income-sources',
+  path: '/income-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FreedomRoute = FreedomRouteImport.update({
+  id: '/freedom',
+  path: '/freedom',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BudgetRoute = BudgetRouteImport.update({
+  id: '/budget',
+  path: '/budget',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsRoute = AssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +55,116 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/budget': typeof BudgetRoute
+  '/freedom': typeof FreedomRoute
+  '/income-sources': typeof IncomeSourcesRoute
+  '/life-map': typeof LifeMapRoute
+  '/targets': typeof TargetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/budget': typeof BudgetRoute
+  '/freedom': typeof FreedomRoute
+  '/income-sources': typeof IncomeSourcesRoute
+  '/life-map': typeof LifeMapRoute
+  '/targets': typeof TargetsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/budget': typeof BudgetRoute
+  '/freedom': typeof FreedomRoute
+  '/income-sources': typeof IncomeSourcesRoute
+  '/life-map': typeof LifeMapRoute
+  '/targets': typeof TargetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/assets'
+    | '/budget'
+    | '/freedom'
+    | '/income-sources'
+    | '/life-map'
+    | '/targets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/assets'
+    | '/budget'
+    | '/freedom'
+    | '/income-sources'
+    | '/life-map'
+    | '/targets'
+  id:
+    | '__root__'
+    | '/'
+    | '/assets'
+    | '/budget'
+    | '/freedom'
+    | '/income-sources'
+    | '/life-map'
+    | '/targets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AssetsRoute: typeof AssetsRoute
+  BudgetRoute: typeof BudgetRoute
+  FreedomRoute: typeof FreedomRoute
+  IncomeSourcesRoute: typeof IncomeSourcesRoute
+  LifeMapRoute: typeof LifeMapRoute
+  TargetsRoute: typeof TargetsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/targets': {
+      id: '/targets'
+      path: '/targets'
+      fullPath: '/targets'
+      preLoaderRoute: typeof TargetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/life-map': {
+      id: '/life-map'
+      path: '/life-map'
+      fullPath: '/life-map'
+      preLoaderRoute: typeof LifeMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/income-sources': {
+      id: '/income-sources'
+      path: '/income-sources'
+      fullPath: '/income-sources'
+      preLoaderRoute: typeof IncomeSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/freedom': {
+      id: '/freedom'
+      path: '/freedom'
+      fullPath: '/freedom'
+      preLoaderRoute: typeof FreedomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/budget': {
+      id: '/budget'
+      path: '/budget'
+      fullPath: '/budget'
+      preLoaderRoute: typeof BudgetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets': {
+      id: '/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AssetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,17 +177,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AssetsRoute: AssetsRoute,
+  BudgetRoute: BudgetRoute,
+  FreedomRoute: FreedomRoute,
+  IncomeSourcesRoute: IncomeSourcesRoute,
+  LifeMapRoute: LifeMapRoute,
+  TargetsRoute: TargetsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

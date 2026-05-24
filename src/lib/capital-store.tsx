@@ -1,0 +1,262 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+export type AssetType = "real_estate" | "collection" | "vehicle" | "cash" | "other";
+export type AssetStatus = "owned" | "idea" | "planned" | "in_progress" | "purchased";
+
+export interface Asset {
+  id: string;
+  name: string;
+  type: AssetType;
+  min: number;
+  estimated: number;
+  max: number;
+  status: AssetStatus;
+  identity?: boolean;
+}
+
+export interface TargetAsset {
+  id: string;
+  name: string;
+  meaning: string;
+  horizon: string;
+  status: "idea" | "planned" | "in_progress" | "purchased";
+  estimatedCost: number;
+  saved: number;
+  nextStep: string;
+}
+
+export interface Expense {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+export interface IncomeSource {
+  id: string;
+  name: string;
+  type: string;
+  geography: string;
+  monthly: number;
+  growth: "low" | "medium" | "high";
+  selfDependent: boolean;
+  countryBound: boolean;
+  status: "active" | "planned" | "paused";
+}
+
+export interface LifeStage {
+  id: string;
+  period: string;
+  title: string;
+  goals: string[];
+  desiredIncome: string;
+  targetAssets: string[];
+  role: string;
+  lifeType: string;
+  focus: string;
+}
+
+interface CapitalState {
+  assets: Asset[];
+  targets: TargetAsset[];
+  expenses: Expense[];
+  incomeSources: IncomeSource[];
+  stages: LifeStage[];
+  incomeScenarios: number[];
+  currentStageId: string;
+  freedomTarget: { min: number; max: number };
+  minIncome: number;
+}
+
+const STORAGE_KEY = "life-capital-v1";
+
+const defaultState: CapitalState = {
+  assets: [
+    { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 8_500_000, estimated: 8_500_000, max: 8_500_000, status: "owned" },
+    { id: "a2", name: "Коллекция LEGO", type: "collection", min: 1_300_000, estimated: 1_500_000, max: 1_700_000, status: "owned", identity: true },
+    { id: "a3", name: "Коллекция игр PlayStation", type: "collection", min: 400_000, estimated: 450_000, max: 500_000, status: "owned", identity: true },
+    { id: "a4", name: "Коллекция Funko POP", type: "collection", min: 400_000, estimated: 400_000, max: 400_000, status: "owned", identity: true },
+  ],
+  targets: [
+    { id: "t1", name: "Квартира в Москве для игр и LEGO", meaning: "Личная берлога для коллекций, игр, сборки LEGO, чтения и восстановления.", horizon: "37–40", status: "planned", estimatedCost: 18_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
+    { id: "t2", name: "Семейная квартира в Москве", meaning: "Основное жильё для семьи.", horizon: "40–50", status: "idea", estimatedCost: 45_000_000, saved: 0, nextStep: "Определить требования к локации и метражу" },
+    { id: "t3", name: "Дом отшельника в Японии", meaning: "Небольшой дом рядом с природой, недалеко от Токио — тишина, комиксы, чтение.", horizon: "40–50 / 50+", status: "idea", estimatedCost: 25_000_000, saved: 0, nextStep: "Изучить визовые и собственнические режимы" },
+    { id: "t4", name: "Дом во Флориде для старости", meaning: "Хороший климат, побережье, старый Mustang, спокойная старость.", horizon: "50+", status: "idea", estimatedCost: 60_000_000, saved: 0, nextStep: "Исследовать рынок southwest Florida" },
+    { id: "t5", name: "Квартира в СПб", meaning: "Уже существующий актив — точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 8_500_000, saved: 8_500_000, nextStep: "Поддерживать состояние" },
+  ],
+  expenses: [
+    { id: "e1", name: "Аренда квартиры", amount: 80_000 },
+    { id: "e2", name: "Квартплата СПб", amount: 20_000 },
+    { id: "e3", name: "Питание дома и рестораны", amount: 80_000 },
+    { id: "e4", name: "Мобильный телефон", amount: 1_000 },
+    { id: "e5", name: "Интернет", amount: 500 },
+    { id: "e6", name: "Стрижка", amount: 4_000 },
+    { id: "e7", name: "Комиссии, карты, подписки", amount: 1_500 },
+    { id: "e8", name: "Мама", amount: 10_000 },
+    { id: "e9", name: "Склад", amount: 4_700 },
+    { id: "e10", name: "Фитнес", amount: 2_300 },
+    { id: "e11", name: "Клининг", amount: 7_000 },
+  ],
+  incomeSources: [],
+  stages: [
+    {
+      id: "s1",
+      period: "37–40",
+      title: "Фундамент и берлога",
+      goals: [
+        "Создать проекты с доходом 500k–1M ₽/мес",
+        "Откладывать всё, что выше прожиточного минимума",
+        "Развить источники дохода вне привязки к стране",
+        "Купить новую машину",
+        "Купить небольшую квартиру в Москве для коллекций",
+      ],
+      desiredIncome: "500 000 – 1 000 000 ₽",
+      targetAssets: ["Авто", "Квартира в Москве для коллекций"],
+      role: "Основатель проектов",
+      lifeType: "Сфокусированный, рабочий, накопительный",
+      focus: "Авто и квартира в Москве в собственности",
+    },
+    {
+      id: "s2",
+      period: "40–50",
+      title: "Бизнес и семья",
+      goals: [
+        "Построить стабильный бизнес или войти в долю",
+        "Доход 1M–2M ₽/мес от бизнеса",
+        "Масштабировать источники, независимые от страны",
+        "Накопить на семейную квартиру в Москве",
+        "Накопить бюджет на недвижимость в США и Японии",
+      ],
+      desiredIncome: "1 000 000 – 2 000 000 ₽",
+      targetAssets: ["Семейная квартира в Москве", "Бюджет: США", "Бюджет: Япония"],
+      role: "Владелец / партнёр в бизнесе",
+      lifeType: "Семья, бизнес, международная мобильность",
+      focus: "Капитал и недвижимость за рубежом",
+    },
+    {
+      id: "s3",
+      period: "50+",
+      title: "Свобода и наследие",
+      goals: [
+        "Выйти из операционной деятельности",
+        "Жить на пассивный доход: инвестиции, доли, аренда",
+        "Творческие проекты — кино, сериалы",
+        "Зимовать в США и Японии",
+      ],
+      desiredIncome: "Пассивный 1.5M+ ₽",
+      targetAssets: ["Дом во Флориде", "Дом в Японии"],
+      role: "Инвестор, наблюдатель, автор",
+      lifeType: "Свободный, между странами, творческий",
+      focus: "Наследие и качество жизни",
+    },
+  ],
+  incomeScenarios: [300_000, 500_000, 1_000_000, 2_000_000],
+  currentStageId: "s1",
+  freedomTarget: { min: 500_000, max: 2_000_000 },
+  minIncome: 300_000,
+};
+
+interface Ctx {
+  state: CapitalState;
+  update: (patch: Partial<CapitalState>) => void;
+  updateAsset: (id: string, patch: Partial<Asset>) => void;
+  addAsset: (a: Asset) => void;
+  removeAsset: (id: string) => void;
+  updateExpense: (id: string, patch: Partial<Expense>) => void;
+  addExpense: (e: Expense) => void;
+  removeExpense: (id: string) => void;
+  updateTarget: (id: string, patch: Partial<TargetAsset>) => void;
+  addIncome: (s: IncomeSource) => void;
+  updateIncome: (id: string, patch: Partial<IncomeSource>) => void;
+  removeIncome: (id: string) => void;
+  reset: () => void;
+  totals: {
+    minCapital: number;
+    estimatedCapital: number;
+    maxCapital: number;
+    monthlyMinimum: number;
+    activeIncome: number;
+    passiveIncome: number;
+  };
+}
+
+const CapitalContext = createContext<Ctx | null>(null);
+
+export function CapitalProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<CapitalState>(defaultState);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setState({ ...defaultState, ...JSON.parse(raw) });
+    } catch {}
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {}
+  }, [state, hydrated]);
+
+  const update = (patch: Partial<CapitalState>) => setState((s) => ({ ...s, ...patch }));
+
+  const updateAsset = (id: string, patch: Partial<Asset>) =>
+    setState((s) => ({ ...s, assets: s.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
+  const addAsset = (a: Asset) => setState((s) => ({ ...s, assets: [...s.assets, a] }));
+  const removeAsset = (id: string) => setState((s) => ({ ...s, assets: s.assets.filter((a) => a.id !== id) }));
+
+  const updateExpense = (id: string, patch: Partial<Expense>) =>
+    setState((s) => ({ ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
+  const addExpense = (e: Expense) => setState((s) => ({ ...s, expenses: [...s.expenses, e] }));
+  const removeExpense = (id: string) => setState((s) => ({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }));
+
+  const updateTarget = (id: string, patch: Partial<TargetAsset>) =>
+    setState((s) => ({ ...s, targets: s.targets.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+
+  const addIncome = (src: IncomeSource) =>
+    setState((s) => ({ ...s, incomeSources: [...s.incomeSources, src] }));
+  const updateIncome = (id: string, patch: Partial<IncomeSource>) =>
+    setState((s) => ({ ...s, incomeSources: s.incomeSources.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+  const removeIncome = (id: string) =>
+    setState((s) => ({ ...s, incomeSources: s.incomeSources.filter((i) => i.id !== id) }));
+
+  const reset = () => setState(defaultState);
+
+  const minCapital = state.assets.reduce((s, a) => s + a.min, 0);
+  const estimatedCapital = state.assets.reduce((s, a) => s + a.estimated, 0);
+  const maxCapital = state.assets.reduce((s, a) => s + a.max, 0);
+  const monthlyMinimum = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.selfDependent).reduce((s, i) => s + i.monthly, 0);
+  const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && !i.selfDependent).reduce((s, i) => s + i.monthly, 0);
+
+  return (
+    <CapitalContext.Provider
+      value={{
+        state,
+        update,
+        updateAsset,
+        addAsset,
+        removeAsset,
+        updateExpense,
+        addExpense,
+        removeExpense,
+        updateTarget,
+        addIncome,
+        updateIncome,
+        removeIncome,
+        reset,
+        totals: { minCapital, estimatedCapital, maxCapital, monthlyMinimum, activeIncome, passiveIncome },
+      }}
+    >
+      {children}
+    </CapitalContext.Provider>
+  );
+}
+
+export function useCapital() {
+  const ctx = useContext(CapitalContext);
+  if (!ctx) throw new Error("useCapital must be used inside CapitalProvider");
+  return ctx;
+}
