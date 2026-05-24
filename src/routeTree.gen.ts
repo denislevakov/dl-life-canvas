@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TargetsRouteImport } from './routes/targets'
+import { Route as IncomeSourcesRouteImport } from './routes/income-sources'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as IndexRouteImport } from './routes/index'
@@ -17,6 +18,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const TargetsRoute = TargetsRouteImport.update({
   id: '/targets',
   path: '/targets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IncomeSourcesRoute = IncomeSourcesRouteImport.update({
+  id: '/income-sources',
+  path: '/income-sources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BudgetRoute = BudgetRouteImport.update({
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/income-sources': typeof IncomeSourcesRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/income-sources': typeof IncomeSourcesRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/income-sources': typeof IncomeSourcesRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/assets' | '/budget' | '/targets'
+  fullPaths: '/' | '/assets' | '/budget' | '/income-sources' | '/targets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/assets' | '/budget' | '/targets'
-  id: '__root__' | '/' | '/assets' | '/budget' | '/targets'
+  to: '/' | '/assets' | '/budget' | '/income-sources' | '/targets'
+  id: '__root__' | '/' | '/assets' | '/budget' | '/income-sources' | '/targets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssetsRoute: typeof AssetsRoute
   BudgetRoute: typeof BudgetRoute
+  IncomeSourcesRoute: typeof IncomeSourcesRoute
   TargetsRoute: typeof TargetsRoute
 }
 
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/targets'
       fullPath: '/targets'
       preLoaderRoute: typeof TargetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/income-sources': {
+      id: '/income-sources'
+      path: '/income-sources'
+      fullPath: '/income-sources'
+      preLoaderRoute: typeof IncomeSourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/budget': {
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssetsRoute: AssetsRoute,
   BudgetRoute: BudgetRoute,
+  IncomeSourcesRoute: IncomeSourcesRoute,
   TargetsRoute: TargetsRoute,
 }
 export const routeTree = rootRouteImport
