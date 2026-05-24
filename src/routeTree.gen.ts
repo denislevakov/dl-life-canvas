@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TargetsRouteImport } from './routes/targets'
 import { Route as LifeMapRouteImport } from './routes/life-map'
 import { Route as IncomeSourcesRouteImport } from './routes/income-sources'
+import { Route as FreedomRouteImport } from './routes/freedom'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,11 @@ const LifeMapRoute = LifeMapRouteImport.update({
 const IncomeSourcesRoute = IncomeSourcesRouteImport.update({
   id: '/income-sources',
   path: '/income-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FreedomRoute = FreedomRouteImport.update({
+  id: '/freedom',
+  path: '/freedom',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BudgetRoute = BudgetRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/freedom': typeof FreedomRoute
   '/income-sources': typeof IncomeSourcesRoute
   '/life-map': typeof LifeMapRoute
   '/targets': typeof TargetsRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/freedom': typeof FreedomRoute
   '/income-sources': typeof IncomeSourcesRoute
   '/life-map': typeof LifeMapRoute
   '/targets': typeof TargetsRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/freedom': typeof FreedomRoute
   '/income-sources': typeof IncomeSourcesRoute
   '/life-map': typeof LifeMapRoute
   '/targets': typeof TargetsRoute
@@ -78,16 +87,25 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/budget'
+    | '/freedom'
     | '/income-sources'
     | '/life-map'
     | '/targets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/assets' | '/budget' | '/income-sources' | '/life-map' | '/targets'
+  to:
+    | '/'
+    | '/assets'
+    | '/budget'
+    | '/freedom'
+    | '/income-sources'
+    | '/life-map'
+    | '/targets'
   id:
     | '__root__'
     | '/'
     | '/assets'
     | '/budget'
+    | '/freedom'
     | '/income-sources'
     | '/life-map'
     | '/targets'
@@ -97,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssetsRoute: typeof AssetsRoute
   BudgetRoute: typeof BudgetRoute
+  FreedomRoute: typeof FreedomRoute
   IncomeSourcesRoute: typeof IncomeSourcesRoute
   LifeMapRoute: typeof LifeMapRoute
   TargetsRoute: typeof TargetsRoute
@@ -123,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/income-sources'
       fullPath: '/income-sources'
       preLoaderRoute: typeof IncomeSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/freedom': {
+      id: '/freedom'
+      path: '/freedom'
+      fullPath: '/freedom'
+      preLoaderRoute: typeof FreedomRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/budget': {
@@ -153,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssetsRoute: AssetsRoute,
   BudgetRoute: BudgetRoute,
+  FreedomRoute: FreedomRoute,
   IncomeSourcesRoute: IncomeSourcesRoute,
   LifeMapRoute: LifeMapRoute,
   TargetsRoute: TargetsRoute,
