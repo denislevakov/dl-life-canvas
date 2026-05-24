@@ -123,5 +123,3 @@ function RootComponent() {
   );
 }
 
-import { AppShell } from "@/components/AppShell";
-import { CapitalProvider } from "@/lib/capital-store";
