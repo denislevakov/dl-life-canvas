@@ -12,7 +12,7 @@ export const Route = createFileRoute("/income-sources")({
 });
 
 function IncomePage() {
-  const { state, totals, addIncome, updateIncome, removeIncome } = useCapital();
+  const { state, addIncome, updateIncome, removeIncome } = useCapital();
   const sources = state.incomeSources;
   const active = sources.filter((s) => s.status === "active");
   const total = active.reduce((a, s) => a + s.monthly, 0);
