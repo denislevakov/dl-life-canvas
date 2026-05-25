@@ -41,6 +41,7 @@ export interface IncomeSource {
   selfDependent: boolean;
   countryBound: boolean;
   status: "active" | "planned" | "paused";
+  kind: "active" | "passive";
 }
 
 export interface LifeStage {
@@ -67,21 +68,21 @@ interface CapitalState {
   minIncome: number;
 }
 
-const STORAGE_KEY = "life-capital-v1";
+const STORAGE_KEY = "life-capital-v2";
 
 const defaultState: CapitalState = {
   assets: [
-    { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 8_500_000, estimated: 8_500_000, max: 8_500_000, status: "owned" },
-    { id: "a2", name: "Коллекция LEGO", type: "collection", min: 1_300_000, estimated: 1_500_000, max: 1_700_000, status: "owned", identity: true },
-    { id: "a3", name: "Коллекция игр PlayStation", type: "collection", min: 400_000, estimated: 450_000, max: 500_000, status: "owned", identity: true },
-    { id: "a4", name: "Коллекция Funko POP", type: "collection", min: 400_000, estimated: 400_000, max: 400_000, status: "owned", identity: true },
+    { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 10_500_000, estimated: 11_000_000, max: 11_500_000, status: "owned" },
+    { id: "a2", name: "Коллекция LEGO", type: "collection", min: 1_200_000, estimated: 1_350_000, max: 1_500_000, status: "owned", identity: true },
+    { id: "a3", name: "Коллекция видеоигр для PlayStation", type: "collection", min: 400_000, estimated: 450_000, max: 500_000, status: "owned", identity: true },
+    { id: "a4", name: "Коллекция Funko POP", type: "collection", min: 400_000, estimated: 450_000, max: 500_000, status: "owned", identity: true },
   ],
   targets: [
-    { id: "t1", name: "Квартира в Москве для игр и LEGO", meaning: "Личная берлога для коллекций, игр, сборки LEGO, чтения и восстановления.", horizon: "37–40", status: "planned", estimatedCost: 18_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
-    { id: "t2", name: "Семейная квартира в Москве", meaning: "Основное жильё для семьи.", horizon: "40–50", status: "idea", estimatedCost: 45_000_000, saved: 0, nextStep: "Определить требования к локации и метражу" },
-    { id: "t3", name: "Дом отшельника в Японии", meaning: "Небольшой дом рядом с природой, недалеко от Токио — тишина, комиксы, чтение.", horizon: "40–50 / 50+", status: "idea", estimatedCost: 25_000_000, saved: 0, nextStep: "Изучить визовые и собственнические режимы" },
-    { id: "t4", name: "Дом во Флориде для старости", meaning: "Хороший климат, побережье, старый Mustang, спокойная старость.", horizon: "50+", status: "idea", estimatedCost: 60_000_000, saved: 0, nextStep: "Исследовать рынок southwest Florida" },
-    { id: "t5", name: "Квартира в СПб", meaning: "Уже существующий актив — точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 8_500_000, saved: 8_500_000, nextStep: "Поддерживать состояние" },
+    { id: "t1", name: "Берлога в Москве", meaning: "Небольшая квартира 35 м², в которой хранятся все мои коллекции. Пространство для ретрогейминга, сборки LEGO и чтения тематических книг.", horizon: "37–40", status: "planned", estimatedCost: 10_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
+    { id: "t2", name: "Квартира для семьи в Москве", meaning: "Основное жильё для моей семьи. 100+ квадратных метров красивого пространства с кабинетом для работы.", horizon: "40–50", status: "idea", estimatedCost: 45_000_000, saved: 0, nextStep: "Определить требования к локации и метражу" },
+    { id: "t3", name: "Дом отшельника в Японии", meaning: "Два этажа японской традиционной аскетичности в нескольких часах езды от Токио. Место, чтобы побыть наедине с собой и природой, но с доступом к цивилизации и покупочкам.", horizon: "40–50 / 50+", status: "idea", estimatedCost: 12_000_000, saved: 0, nextStep: "Изучить визовые и собственнические режимы" },
+    { id: "t4", name: "Дом во Флориде", meaning: "Дом с баскетбольной площадкой и гаражом для раритетного Mustang. Место, чтобы провести старость и забыть о существовании зимы.", horizon: "50+", status: "idea", estimatedCost: 30_000_000, saved: 0, nextStep: "Исследовать рынок southwest Florida" },
+    { id: "t5", name: "Квартира в СПб", meaning: "Уже существующий актив — точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 11_000_000, saved: 11_000_000, nextStep: "Поддерживать состояние" },
   ],
   expenses: [
     { id: "e1", name: "Аренда квартиры", amount: 80_000 },
@@ -101,19 +102,18 @@ const defaultState: CapitalState = {
     {
       id: "s1",
       period: "37–40",
-      title: "Фундамент и берлога",
+      title: "Создание фундамента",
       goals: [
         "Создать проекты с доходом 500k–1M ₽/мес",
-        "Откладывать всё, что выше прожиточного минимума",
-        "Развить источники дохода вне привязки к стране",
-        "Купить новую машину",
-        "Купить небольшую квартиру в Москве для коллекций",
+        "Создать источники дохода вне привязки к стране",
+        "Приобрести новый авто",
+        "Берлога в Москве",
       ],
       desiredIncome: "500 000 – 1 000 000 ₽",
-      targetAssets: ["Авто", "Квартира в Москве для коллекций"],
+      targetAssets: ["Авто", "Берлога"],
       role: "Основатель проектов",
       lifeType: "Сфокусированный, рабочий, накопительный",
-      focus: "Авто и квартира в Москве в собственности",
+      focus: "Создание фундамента",
     },
     {
       id: "s2",
@@ -121,13 +121,14 @@ const defaultState: CapitalState = {
       title: "Бизнес и семья",
       goals: [
         "Построить стабильный бизнес или войти в долю",
-        "Доход 1M–2M ₽/мес от бизнеса",
-        "Масштабировать источники, независимые от страны",
-        "Накопить на семейную квартиру в Москве",
-        "Накопить бюджет на недвижимость в США и Японии",
+        "Доход 1M–2M ₽/мес",
+        "Масштабировать дополнительные источники дохода",
+        "Квартира для семьи в Москве",
+        "Дом в Японии",
+        "Дом во Флориде",
       ],
       desiredIncome: "1 000 000 – 2 000 000 ₽",
-      targetAssets: ["Семейная квартира в Москве", "Бюджет: США", "Бюджет: Япония"],
+      targetAssets: ["Квартира для семьи в Москве", "Дом в Японии", "Дом во Флориде"],
       role: "Владелец / партнёр в бизнесе",
       lifeType: "Семья, бизнес, международная мобильность",
       focus: "Капитал и недвижимость за рубежом",
@@ -139,8 +140,8 @@ const defaultState: CapitalState = {
       goals: [
         "Выйти из операционной деятельности",
         "Жить на пассивный доход: инвестиции, доли, аренда",
-        "Творческие проекты — кино, сериалы",
-        "Зимовать в США и Японии",
+        "Делать творческие проекты",
+        "Не знать зимы",
       ],
       desiredIncome: "Пассивный 1.5M+ ₽",
       targetAssets: ["Дом во Флориде", "Дом в Японии"],
@@ -228,8 +229,8 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const estimatedCapital = state.assets.reduce((s, a) => s + a.estimated, 0);
   const maxCapital = state.assets.reduce((s, a) => s + a.max, 0);
   const monthlyMinimum = state.expenses.reduce((s, e) => s + e.amount, 0);
-  const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.selfDependent).reduce((s, i) => s + i.monthly, 0);
-  const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && !i.selfDependent).reduce((s, i) => s + i.monthly, 0);
+  const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "active").reduce((s, i) => s + i.monthly, 0);
+  const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
 
   return (
     <CapitalContext.Provider

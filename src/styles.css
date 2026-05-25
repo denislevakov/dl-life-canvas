@@ -156,14 +156,15 @@
   }
 
   h1, h2, h3, h4 {
-    font-family: "Fraunces", "Inter", serif;
-    letter-spacing: -0.02em;
-    font-weight: 500;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.03em;
+    font-weight: 600;
   }
 
   .font-display {
-    font-family: "Fraunces", serif;
-    letter-spacing: -0.02em;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.03em;
+    font-weight: 600;
   }
 
   .tabular {

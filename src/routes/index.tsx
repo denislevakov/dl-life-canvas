@@ -62,11 +62,11 @@ function Index() {
             </div>
             <div className="mt-6 max-w-md">
               <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                <span>Путь к капиталу свободы</span>
+                <span>Прогресс к цели свободы</span>
                 <span className="tabular">{Math.round(freedomProgress)}%</span>
               </div>
               <ProgressBar value={freedomProgress} accent="gold" />
-              <div className="mt-1.5 text-[11px] text-muted-foreground tabular">Ориентир: 50 млн ₽</div>
+              <div className="mt-1.5 text-[11px] text-muted-foreground tabular">Цель капитала: 50 млн ₽</div>
             </div>
           </div>
           <div className="border-l border-border pl-6 hidden md:block">
@@ -75,7 +75,6 @@ function Index() {
             <div className="text-xs text-muted-foreground mt-1">в месяц</div>
             <div className="mt-6 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Минимальный доход</div>
             <div className="mt-2 font-display text-3xl tabular text-foreground">{formatRub(state.minIncome)}</div>
-            <div className="text-xs text-muted-foreground mt-1">порог стабильности</div>
           </div>
         </div>
       </div>
@@ -83,9 +82,9 @@ function Index() {
       {/* Freedom range */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <MetricCard
-          label="Комфортный диапазон свободы"
+          label="Комфортный доход в месяц"
           value={`${(state.freedomTarget.min / 1000).toFixed(0)}k – ${(state.freedomTarget.max / 1_000_000).toFixed(0)}M ₽`}
-          sublabel="доход в месяц"
+          sublabel="целевой коридор"
           accent="gold"
         />
         <MetricCard
@@ -97,7 +96,6 @@ function Index() {
         <MetricCard
           label="Активы идентичности"
           value={`${state.assets.filter((a) => a.identity).length} коллекции`}
-          sublabel="LEGO · PlayStation · Funko POP"
         />
       </div>
 
@@ -147,7 +145,7 @@ function Index() {
           </div>
         )}
         <div className="rounded-xl border border-border bg-card p-6">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">Главная ставка периода {currentStage.period}</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">Главные цели периода {currentStage.period}</div>
           <div className="mt-3 font-display text-xl">{currentStage.focus}</div>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
             {currentStage.goals.slice(0, 4).map((g, i) => (
