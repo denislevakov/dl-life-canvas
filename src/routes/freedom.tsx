@@ -11,10 +11,10 @@ export const Route = createFileRoute("/freedom")({
 
 const stages = [
   { key: "survival", label: "Выживание", desc: "Покрытие базовых расходов" },
-  { key: "stability", label: "Стабильность", desc: "Доход выше минимума, есть подушка" },
-  { key: "freedom", label: "Свобода", desc: "Доход в комфортном диапазоне" },
-  { key: "capital", label: "Капитал", desc: "Активы дают пассивный поток" },
-  { key: "legacy", label: "Наследие", desc: "Выход из операционной деятельности" },
+  { key: "stability", label: "Стабильность", desc: "Доход выше минимума, есть подушка — от 500 000 ₽" },
+  { key: "freedom", label: "Свобода", desc: "Доход в комфортном диапазоне — от 1 000 000 ₽" },
+  { key: "capital", label: "Капитал", desc: "Активы дают пассивный поток — от 1 500 000 ₽" },
+  { key: "legacy", label: "Наследие", desc: "Выход из операционной деятельности — от 2 000 000 ₽" },
 ] as const;
 
 function FreedomPage() {
@@ -28,12 +28,12 @@ function FreedomPage() {
   const freedomTarget = state.freedomTarget.min;
   const freedomProgress = freedomTarget ? Math.min(100, (currentIncome / freedomTarget) * 100) : 0;
 
-  // Determine current scale position
+  // Determine current scale position based on absolute income thresholds
   let currentIndex = 0;
-  if (coverage >= 1) currentIndex = 1;
-  if (currentIncome >= state.freedomTarget.min) currentIndex = 2;
-  if (passiveCoverage >= 1) currentIndex = 3;
-  if (passiveCoverage >= 2 && offOperational > 70) currentIndex = 4;
+  if (currentIncome >= 500_000) currentIndex = 1;
+  if (currentIncome >= 1_000_000) currentIndex = 2;
+  if (passiveIncome >= 1_500_000) currentIndex = 3;
+  if (passiveIncome >= 2_000_000) currentIndex = 4;
 
   return (
     <PageContainer>

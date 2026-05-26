@@ -152,7 +152,7 @@ const defaultState: CapitalState = {
   ],
   incomeScenarios: [300_000, 500_000, 1_000_000, 2_000_000],
   currentStageId: "s1",
-  freedomTarget: { min: 500_000, max: 2_000_000 },
+  freedomTarget: { min: 1_000_000, max: 2_000_000 },
   minIncome: 300_000,
 };
 
