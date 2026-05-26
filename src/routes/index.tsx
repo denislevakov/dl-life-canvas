@@ -29,7 +29,7 @@ function Index() {
     coverage: monthlyMinimum ? income / monthlyMinimum : 0,
   }));
 
-  const freedomProgress = Math.min(100, (estimatedCapital / 50_000_000) * 100);
+  const freedomProgress = Math.min(100, (estimatedCapital / 100_000_000) * 100);
 
   return (
     <PageContainer>
