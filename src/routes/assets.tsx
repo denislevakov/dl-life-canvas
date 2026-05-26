@@ -4,7 +4,8 @@ import { PageContainer, PageHeader, MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EditableNumber } from "@/components/EditableNumber";
 import { formatMillions, formatRange } from "@/lib/format";
-import { Plus, Trash2, Sparkles } from "lucide-react";
+import { Plus, Trash2, Sparkles, Pencil, Check } from "lucide-react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/assets")({
   head: () => ({ meta: [{ title: "Активы · Life Capital" }, { name: "description", content: "Структура текущих активов и долей в общем капитале." }] }),
@@ -21,6 +22,7 @@ const typeLabels: Record<AssetType, string> = {
 
 function AssetsPage() {
   const { state, totals, updateAsset, addAsset, removeAsset } = useCapital();
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
     <PageContainer>
@@ -35,12 +37,25 @@ function AssetsPage() {
       <div className="space-y-3">
         {state.assets.map((a) => {
           const share = (a.estimated / (totals.estimatedCapital || 1)) * 100;
+          const isEditing = editingId === a.id;
           return (
             <div key={a.id} className="rounded-lg border border-border bg-card p-5">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="font-display text-lg text-foreground">{a.name}</div>
+                    {isEditing ? (
+                      <input
+                        autoFocus
+                        value={a.name}
+                        onChange={(e) => updateAsset(a.id, { name: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === "Escape") setEditingId(null);
+                        }}
+                        className="font-display text-lg bg-input border border-border rounded px-2 py-1 text-foreground"
+                      />
+                    ) : (
+                      <div className="font-display text-lg text-foreground">{a.name}</div>
+                    )}
                     <StatusBadge status={a.status} />
                     {a.identity && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-[color:var(--gold)]/40 text-[color:var(--gold)]">
@@ -70,12 +85,24 @@ function AssetsPage() {
                   <div className="mt-2 h-1 w-full md:w-32 md:ml-auto rounded-full bg-[color:var(--surface-elevated)] overflow-hidden">
                     <div className="h-full" style={{ width: `${share}%`, background: "var(--gradient-gold)" }} />
                   </div>
-                  <button
-                    onClick={() => removeAsset(a.id)}
-                    className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-3 w-3" /> удалить
-                  </button>
+                  <div className="mt-3 flex md:justify-end gap-3">
+                    <button
+                      onClick={() => setEditingId(isEditing ? null : a.id)}
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-[color:var(--gold)]"
+                    >
+                      {isEditing ? (
+                        <><Check className="h-3 w-3" /> готово</>
+                      ) : (
+                        <><Pencil className="h-3 w-3" /> редактировать</>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => removeAsset(a.id)}
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" /> удалить
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
