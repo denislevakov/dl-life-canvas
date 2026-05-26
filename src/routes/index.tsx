@@ -66,7 +66,7 @@ function Index() {
                 <span className="tabular">{Math.round(freedomProgress)}%</span>
               </div>
               <ProgressBar value={freedomProgress} accent="gold" />
-              <div className="mt-1.5 text-[11px] text-muted-foreground tabular">Цель капитала: 50 млн ₽</div>
+              <div className="mt-1.5 text-[11px] text-muted-foreground tabular">Цель капитала: 100 млн ₽</div>
             </div>
           </div>
           <div className="border-l border-border pl-6 hidden md:block">
