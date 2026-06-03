@@ -191,7 +191,15 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setState((cur) => ({ ...defaultState, ...JSON.parse(raw), ...diffSinceMount(cur) }));
+      if (raw) {
+        const saved = JSON.parse(raw);
+        setState((cur) => {
+          // If the user already mutated state before this load effect fired,
+          // prefer current in-memory state to avoid clobbering unsaved edits.
+          const isPristine = JSON.stringify(cur) === JSON.stringify(defaultState);
+          return isPristine ? { ...defaultState, ...saved } : cur;
+        });
+      }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
