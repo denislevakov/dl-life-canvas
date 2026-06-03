@@ -184,46 +184,58 @@ const CapitalContext = createContext<Ctx | null>(null);
 
 export function CapitalProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CapitalState>(defaultState);
-  const [hydrated, setHydrated] = useState(false);
 
+  // Load saved state once on mount (client only). We intentionally do NOT
+  // gate saves on a "hydrated" flag — every mutation persists synchronously
+  // via `commit()` below, so there is no race where typing is dropped.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setState({ ...defaultState, ...JSON.parse(raw) });
+      if (raw) setState((cur) => ({ ...defaultState, ...JSON.parse(raw), ...diffSinceMount(cur) }));
     } catch {}
-    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {}
-  }, [state, hydrated]);
+  // Helper that updates React state AND writes localStorage in one shot,
+  // using the freshly computed next state so we never persist a stale value.
+  const commit = (updater: (s: CapitalState) => CapitalState) => {
+    setState((s) => {
+      const next = updater(s);
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+      } catch {}
+      return next;
+    });
+  };
 
-  const update = (patch: Partial<CapitalState>) => setState((s) => ({ ...s, ...patch }));
+  const update = (patch: Partial<CapitalState>) => commit((s) => ({ ...s, ...patch }));
 
   const updateAsset = (id: string, patch: Partial<Asset>) =>
-    setState((s) => ({ ...s, assets: s.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
-  const addAsset = (a: Asset) => setState((s) => ({ ...s, assets: [...s.assets, a] }));
-  const removeAsset = (id: string) => setState((s) => ({ ...s, assets: s.assets.filter((a) => a.id !== id) }));
+    commit((s) => ({ ...s, assets: s.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
+  const addAsset = (a: Asset) => commit((s) => ({ ...s, assets: [...s.assets, a] }));
+  const removeAsset = (id: string) => commit((s) => ({ ...s, assets: s.assets.filter((a) => a.id !== id) }));
 
   const updateExpense = (id: string, patch: Partial<Expense>) =>
-    setState((s) => ({ ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
-  const addExpense = (e: Expense) => setState((s) => ({ ...s, expenses: [...s.expenses, e] }));
-  const removeExpense = (id: string) => setState((s) => ({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }));
+    commit((s) => ({ ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
+  const addExpense = (e: Expense) => commit((s) => ({ ...s, expenses: [...s.expenses, e] }));
+  const removeExpense = (id: string) => commit((s) => ({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }));
 
   const updateTarget = (id: string, patch: Partial<TargetAsset>) =>
-    setState((s) => ({ ...s, targets: s.targets.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+    commit((s) => ({ ...s, targets: s.targets.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
 
   const addIncome = (src: IncomeSource) =>
-    setState((s) => ({ ...s, incomeSources: [...s.incomeSources, src] }));
+    commit((s) => ({ ...s, incomeSources: [...s.incomeSources, src] }));
   const updateIncome = (id: string, patch: Partial<IncomeSource>) =>
-    setState((s) => ({ ...s, incomeSources: s.incomeSources.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+    commit((s) => ({ ...s, incomeSources: s.incomeSources.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
   const removeIncome = (id: string) =>
-    setState((s) => ({ ...s, incomeSources: s.incomeSources.filter((i) => i.id !== id) }));
+    commit((s) => ({ ...s, incomeSources: s.incomeSources.filter((i) => i.id !== id) }));
 
-  const reset = () => setState(defaultState);
+  const reset = () => {
+    try { if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY); } catch {}
+    setState(defaultState);
+  };
 
   const minCapital = state.assets.reduce((s, a) => s + a.min, 0);
   const estimatedCapital = state.assets.reduce((s, a) => s + a.estimated, 0);
