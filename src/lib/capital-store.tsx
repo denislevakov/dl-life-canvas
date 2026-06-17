@@ -68,7 +68,7 @@ interface CapitalState {
   minIncome: number;
 }
 
-const STORAGE_KEY = "life-capital-v3";
+const STORAGE_KEY = "life-capital-v4";
 
 const defaultState: CapitalState = {
   assets: [
