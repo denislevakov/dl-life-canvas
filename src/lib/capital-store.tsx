@@ -69,6 +69,8 @@ interface CapitalState {
 }
 
 const STORAGE_KEY = "life-capital-v4";
+const LEGACY_STORAGE_KEYS = ["life-capital-v3"];
+const MIGRATION_KEY = "life-capital-v4-migrated-income-budget";
 
 const defaultState: CapitalState = {
   assets: [
@@ -154,6 +156,16 @@ const defaultState: CapitalState = {
   minIncome: 300_000,
 };
 
+const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Partial<CapitalState>) : null;
+  } catch {
+    return null;
+  }
+};
+
 interface Ctx {
   state: CapitalState;
   update: (patch: Partial<CapitalState>) => void;
@@ -188,14 +200,30 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   // via `commit()` below, so there is no race where typing is dropped.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw);
+      const saved = readStoredCapitalState(STORAGE_KEY);
+      const wasMigrated = window.localStorage.getItem(MIGRATION_KEY) === "1";
+      const legacy = wasMigrated ? null : LEGACY_STORAGE_KEYS.map(readStoredCapitalState).find(Boolean);
+
+      if (saved || legacy) {
         setState((cur) => {
           // If the user already mutated state before this load effect fired,
           // prefer current in-memory state to avoid clobbering unsaved edits.
           const isPristine = JSON.stringify(cur) === JSON.stringify(defaultState);
-          return isPristine ? { ...defaultState, ...saved } : cur;
+          if (!isPristine) return cur;
+
+          const next = { ...defaultState, ...(saved ?? {}) } as CapitalState;
+
+          // The v4 key introduced updated target assets, but hid the user's
+          // previously edited budget and income-source data from v3. Restore
+          // exactly those sections once, while keeping the new targets/stages.
+          if (legacy) {
+            if (Array.isArray(legacy.expenses)) next.expenses = legacy.expenses;
+            if (Array.isArray(legacy.incomeSources)) next.incomeSources = legacy.incomeSources;
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            window.localStorage.setItem(MIGRATION_KEY, "1");
+          }
+
+          return next;
         });
       }
     } catch {}
@@ -239,7 +267,12 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     commit((s) => ({ ...s, incomeSources: s.incomeSources.filter((i) => i.id !== id) }));
 
   const reset = () => {
-    try { if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY); } catch {}
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(MIGRATION_KEY);
+      }
+    } catch {}
     setState(defaultState);
   };
 
