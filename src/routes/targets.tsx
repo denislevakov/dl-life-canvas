@@ -7,7 +7,7 @@ import { EditableNumber } from "@/components/EditableNumber";
 import { formatMillions } from "@/lib/format";
 
 export const Route = createFileRoute("/targets")({
-  head: () => ({ meta: [{ title: "Целевые активы · Life Capital" }, { name: "description", content: "Карта будущих активов: Москва, Япония, Флорида." }] }),
+  head: () => ({ meta: [{ title: "Целевые активы · Life Capital" }, { name: "description", content: "Карта будущих активов: квартира в Москве, дом на природе, Флорида." }] }),
   component: TargetsPage,
 });
 
@@ -23,7 +23,7 @@ function TargetsPage() {
 
   return (
     <PageContainer>
-      <PageHeader eyebrow="Стратегия" title="Целевые активы" description="Берлога в Москве, семейная квартира, дом отшельника в Японии и старость во Флориде." />
+      <PageHeader eyebrow="Стратегия" title="Целевые активы" description="Квартира для семьи в Москве, дом на природе и старость во Флориде." />
 
       <div className="grid md:grid-cols-2 gap-4">
         {state.targets.map((t) => {
