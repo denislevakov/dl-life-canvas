@@ -7,7 +7,7 @@ import { EditableNumber } from "@/components/EditableNumber";
 import { formatMillions } from "@/lib/format";
 
 export const Route = createFileRoute("/targets")({
-  head: () => ({ meta: [{ title: "Целевые активы · Life Capital" }, { name: "description", content: "Карта будущих активов: Москва, Япония, Флорида." }] }),
+  head: () => ({ meta: [{ title: "Целевые активы · Life Capital" }, { name: "description", content: "Карта будущих активов: квартира в Москве, дом на природе, Флорида." }] }),
   component: TargetsPage,
 });
 
