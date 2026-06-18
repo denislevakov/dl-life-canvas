@@ -25,6 +25,26 @@ function TargetsPage() {
     <PageContainer>
       <PageHeader eyebrow="Стратегия" title="Целевые активы" description="Квартира для семьи в Москве, дом на природе и старость во Флориде." />
 
+      <div className="rounded-xl border border-border bg-card p-6 mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Общая стоимость всех желаемых активов</div>
+            <div className="font-display text-2xl mt-1.5 tabular">{formatMillions(state.targets.reduce((sum, t) => sum + (t.estimatedCost || 0), 0))}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Накоплено всего</div>
+            <div className="font-display text-2xl mt-1.5 tabular text-[color:var(--gold)]">{formatMillions(state.targets.reduce((sum, t) => sum + (t.saved || 0), 0))}</div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <ProgressBar
+            value={state.targets.reduce((sum, t) => sum + (t.saved || 0), 0)}
+            max={state.targets.reduce((sum, t) => sum + (t.estimatedCost || 0), 0) || 1}
+            accent="gold"
+          />
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4">
         {state.targets.map((t) => {
           const pct = t.estimatedCost ? (t.saved / t.estimatedCost) * 100 : 0;
