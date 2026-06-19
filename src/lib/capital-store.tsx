@@ -304,7 +304,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
               merged.stages = merged.stages.map((st) => {
                 const stageCopy = defaultStages.get(st.id);
                 return stageCopy
-                  ? { ...st, goals: stageCopy.goals, targetAssets: stageCopy.targetAssets }
+                  ? { ...st, goals: stageCopy.goals, targetAssets: stageCopy.targetAssets, desiredIncome: stageCopy.desiredIncome }
                   : st;
               });
             }
