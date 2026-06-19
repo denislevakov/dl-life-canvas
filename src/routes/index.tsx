@@ -18,7 +18,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { state, totals } = useCapital();
-  const { minCapital, maxCapital, estimatedCapital, monthlyMinimum } = totals;
+  const { minCapital, maxCapital, estimatedCapital, monthlyMinimum, minIncome } = totals;
   const nextTarget = state.targets.find((t) => t.status !== "purchased");
   const currentStage = state.stages.find((s) => s.id === state.currentStageId) ?? state.stages[0];
 
@@ -74,7 +74,7 @@ function Index() {
             <div className="mt-2 font-display text-3xl tabular">{formatRub(monthlyMinimum)}</div>
             <div className="text-xs text-muted-foreground mt-1">в месяц</div>
             <div className="mt-6 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Минимальный доход</div>
-            <div className="mt-2 font-display text-3xl tabular text-foreground">{formatRub(state.minIncome)}</div>
+            <div className="mt-2 font-display text-3xl tabular text-foreground">{formatRub(minIncome)}</div>
           </div>
         </div>
       </div>
@@ -89,8 +89,8 @@ function Index() {
         />
         <MetricCard
           label="Запас прочности"
-          value={`${(state.minIncome / monthlyMinimum).toFixed(1)}×`}
-          sublabel={`при доходе ${formatRub(state.minIncome)}`}
+          value={`${(minIncome / monthlyMinimum).toFixed(1)}×`}
+          sublabel={`при доходе ${formatRub(minIncome)}`}
           accent="green"
         />
         <MetricCard
