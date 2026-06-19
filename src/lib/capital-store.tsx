@@ -228,7 +228,13 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           const isPristine = JSON.stringify(cur) === JSON.stringify(defaultState);
           if (!isPristine) return cur;
 
-          return { ...defaultState, ...saved } as CapitalState;
+          const merged = { ...defaultState, ...saved } as CapitalState;
+          // Guard numeric scalars: stale saves may store null/0/undefined which
+          // would visibly wipe the default after hydration.
+          if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
+            merged.minIncome = defaultState.minIncome;
+          }
+          return merged;
         });
       }
     } catch {}
