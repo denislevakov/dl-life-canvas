@@ -102,7 +102,7 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
-const DESC_VERSION = "v3-target-copy";
+const DESC_VERSION = "v4-target-copy";
 const DESC_VERSION_KEY = "life-capital-desc-version";
 
 const defaultState: CapitalState = {
@@ -141,10 +141,10 @@ const defaultState: CapitalState = {
         "Создать проекты с доходом 500k–1M ₽/мес",
         "Создать источники дохода вне привязки к стране",
         "Приобрести новый авто",
-        "Квартира для семьи в Москве",
+        "Квартира в Москве",
       ],
       desiredIncome: "500 000 – 1 000 000 ₽",
-      targetAssets: ["Авто", "Квартира для семьи в Москве"],
+      targetAssets: ["Авто", "Квартира в Москве"],
       role: "Основатель проектов",
       lifeType: "Сфокусированный, рабочий, накопительный",
       focus: "Создание фундамента",
@@ -157,11 +157,11 @@ const defaultState: CapitalState = {
         "Построить стабильный бизнес или войти в долю",
         "Доход 1M–2M ₽/мес",
         "Масштабировать дополнительные источники дохода",
-        "Дом для семьи на природе",
+        "Дом на природе",
         "Дом во Флориде",
       ],
       desiredIncome: "1 000 000 – 2 000 000 ₽",
-      targetAssets: ["Дом для семьи на природе", "Дом во Флориде"],
+      targetAssets: ["Дом на природе", "Дом во Флориде"],
       role: "Владелец / партнёр в бизнесе",
       lifeType: "Семья, бизнес, международная мобильность",
       focus: "Капитал и недвижимость за рубежом",
@@ -177,7 +177,7 @@ const defaultState: CapitalState = {
         "Не знать зимы",
       ],
       desiredIncome: "Пассивный 1.5M+ ₽",
-      targetAssets: ["Дом во Флориде", "Дом для семьи на природе"],
+      targetAssets: ["Дом во Флориде", "Дом на природе"],
       role: "Инвестор, наблюдатель, автор",
       lifeType: "Свободный, между странами, творческий",
       focus: "Наследие и качество жизни",
@@ -289,12 +289,25 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           // so users get updated names/descriptions without losing numbers.
           const storedDescVersion =
             typeof window !== "undefined" ? window.localStorage.getItem(DESC_VERSION_KEY) : null;
-          if (storedDescVersion !== DESC_VERSION && Array.isArray(merged.targets)) {
-            const defaultTargets = new Map(defaultState.targets.map((t) => [t.id, t]));
-            merged.targets = merged.targets.map((t) => {
-              const targetCopy = defaultTargets.get(t.id);
-              return targetCopy ? { ...t, name: targetCopy.name, meaning: targetCopy.meaning } : t;
-            });
+          if (storedDescVersion !== DESC_VERSION) {
+            if (Array.isArray(merged.targets)) {
+              const defaultTargets = new Map(defaultState.targets.map((t) => [t.id, t]));
+              merged.targets = merged.targets.map((t) => {
+                const targetCopy = defaultTargets.get(t.id);
+                return targetCopy ? { ...t, name: targetCopy.name, meaning: targetCopy.meaning } : t;
+              });
+            }
+            // Refresh stage copy that references target asset names so renamed
+            // targets propagate into stage goals / targetAssets lists.
+            if (Array.isArray(merged.stages)) {
+              const defaultStages = new Map(defaultState.stages.map((st) => [st.id, st]));
+              merged.stages = merged.stages.map((st) => {
+                const stageCopy = defaultStages.get(st.id);
+                return stageCopy
+                  ? { ...st, goals: stageCopy.goals, targetAssets: stageCopy.targetAssets }
+                  : st;
+              });
+            }
             try {
               if (typeof window !== "undefined") {
                 window.localStorage.setItem(DESC_VERSION_KEY, DESC_VERSION);
