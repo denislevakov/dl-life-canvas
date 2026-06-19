@@ -1,7 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { CapitalProvider } from "@/lib/capital-store";
-import { LayoutDashboard, Wallet, Target, Receipt, Briefcase, Map, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { CapitalProvider, useCapital } from "@/lib/capital-store";
+import { LayoutDashboard, Wallet, Target, Receipt, Briefcase, Map, Sparkles, RotateCcw, AlertTriangle } from "lucide-react";
 
 const nav = [
   { to: "/", label: "Обзор", icon: LayoutDashboard },
