@@ -84,6 +84,10 @@ interface CapitalState {
   changeLog: ChangeEntry[];
 }
 
+// IMPORTANT: do NOT bump STORAGE_KEY on future deploys — bumping it
+// abandons the user's data. If the shape changes, add a migration inside
+// the load effect instead. New legacy keys go into LEGACY_STORAGE_KEYS
+// only when we truly need to retire a key.
 const STORAGE_KEY = "life-capital-v5";
 const LEGACY_STORAGE_KEYS = ["life-capital-v4", "life-capital-v3"];
 const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
