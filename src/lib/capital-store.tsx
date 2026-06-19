@@ -100,6 +100,11 @@ const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 const RESET_TOKEN = "2026-06-19-min-income-400k";
 const RESET_TOKEN_KEY = "life-capital-reset-token";
 
+// Description update token. Bump this to push new default descriptions
+// into saved data without wiping user-entered numbers.
+const DESC_VERSION = "v2-target-desc";
+const DESC_VERSION_KEY = "life-capital-desc-version";
+
 const defaultState: CapitalState = {
   assets: [
     { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 10_500_000, estimated: 11_000_000, max: 11_500_000, status: "owned" },
