@@ -14,6 +14,50 @@ const nav = [
   { to: "/freedom", label: "Свобода", icon: Sparkles },
 ] as const;
 
+function ResetButton() {
+  const { reset } = useCapital();
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span className="font-medium">Вернуть всё к начальным значениям?</span>
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={() => {
+              reset();
+              setConfirming(false);
+              window.location.reload();
+            }}
+            className="flex-1 rounded-md bg-destructive px-2 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
+          >
+            Да, сбросить
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            className="flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)]/60 hover:text-foreground"
+    >
+      <RotateCcw className="h-3.5 w-3.5" />
+      <span>Сбросить данные</span>
+    </button>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState();
   const path = location.pathname;
