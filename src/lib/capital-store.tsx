@@ -84,9 +84,9 @@ interface CapitalState {
   changeLog: ChangeEntry[];
 }
 
-const STORAGE_KEY = "life-capital-v4";
-const LEGACY_STORAGE_KEYS = ["life-capital-v3"];
-const MIGRATION_KEY = "life-capital-v4-migrated-income-budget";
+const STORAGE_KEY = "life-capital-v5";
+const LEGACY_STORAGE_KEYS = ["life-capital-v4", "life-capital-v3"];
+const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 
 const defaultState: CapitalState = {
   assets: [
@@ -214,35 +214,21 @@ const CapitalContext = createContext<Ctx | null>(null);
 export function CapitalProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CapitalState>(defaultState);
 
-  // Load saved state once on mount (client only). We intentionally do NOT
-  // gate saves on a "hydrated" flag — every mutation persists synchronously
-  // via `commit()` below, so there is no race where typing is dropped.
+  // Load saved state once on mount (client only). Older storage keys are
+  // intentionally ignored so stale published values cannot override the
+  // current defaults after a deploy.
   useEffect(() => {
     try {
       const saved = readStoredCapitalState(STORAGE_KEY);
-      const wasMigrated = window.localStorage.getItem(MIGRATION_KEY) === "1";
-      const legacy = wasMigrated ? null : LEGACY_STORAGE_KEYS.map(readStoredCapitalState).find(Boolean);
 
-      if (saved || legacy) {
+      if (saved) {
         setState((cur) => {
           // If the user already mutated state before this load effect fired,
           // prefer current in-memory state to avoid clobbering unsaved edits.
           const isPristine = JSON.stringify(cur) === JSON.stringify(defaultState);
           if (!isPristine) return cur;
 
-          const next = { ...defaultState, ...(saved ?? {}) } as CapitalState;
-
-          // The v4 key introduced updated target assets, but hid the user's
-          // previously edited budget and income-source data from v3. Restore
-          // exactly those sections once, while keeping the new targets/stages.
-          if (legacy) {
-            if (Array.isArray(legacy.expenses)) next.expenses = legacy.expenses;
-            if (Array.isArray(legacy.incomeSources)) next.incomeSources = legacy.incomeSources;
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-            window.localStorage.setItem(MIGRATION_KEY, "1");
-          }
-
-          return next;
+          return { ...defaultState, ...saved } as CapitalState;
         });
       }
     } catch {}
