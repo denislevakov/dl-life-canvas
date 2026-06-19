@@ -84,6 +84,10 @@ interface CapitalState {
   changeLog: ChangeEntry[];
 }
 
+// IMPORTANT: do NOT bump STORAGE_KEY on future deploys — bumping it
+// abandons the user's data. If the shape changes, add a migration inside
+// the load effect instead. New legacy keys go into LEGACY_STORAGE_KEYS
+// only when we truly need to retire a key.
 const STORAGE_KEY = "life-capital-v5";
 const LEGACY_STORAGE_KEYS = ["life-capital-v4", "life-capital-v3"];
 const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
@@ -219,7 +223,22 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   // current defaults after a deploy.
   useEffect(() => {
     try {
-      const saved = readStoredCapitalState(STORAGE_KEY);
+      let saved = readStoredCapitalState(STORAGE_KEY);
+      let migratedFromLegacy = false;
+
+      // One-time migration: if there's no v5 save yet, pull the user's
+      // previous data from the most recent legacy key so values entered in
+      // older deploys (incomes, expenses, assets, etc.) are preserved.
+      if (!saved) {
+        for (const legacyKey of LEGACY_STORAGE_KEYS) {
+          const legacy = readStoredCapitalState(legacyKey);
+          if (legacy && Object.keys(legacy).length > 0) {
+            saved = legacy;
+            migratedFromLegacy = true;
+            break;
+          }
+        }
+      }
 
       if (saved) {
         setState((cur) => {
@@ -234,6 +253,19 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
             merged.minIncome = defaultState.minIncome;
           }
+
+          // Persist the merged state into the current storage key so future
+          // loads are stable and we don't have to re-run migration.
+          try {
+            if (typeof window !== "undefined") {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+              if (migratedFromLegacy) {
+                LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+                LEGACY_META_KEYS.forEach((key) => localStorage.removeItem(key));
+              }
+            }
+          } catch {}
+
           return merged;
         });
       }
