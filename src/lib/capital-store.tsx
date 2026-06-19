@@ -100,9 +100,9 @@ const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 const RESET_TOKEN = "2026-06-19-min-income-400k";
 const RESET_TOKEN_KEY = "life-capital-reset-token";
 
-// Description update token. Bump this to push new default descriptions
+// Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
-const DESC_VERSION = "v2-target-desc";
+const DESC_VERSION = "v3-target-copy";
 const DESC_VERSION_KEY = "life-capital-desc-version";
 
 const defaultState: CapitalState = {
@@ -113,10 +113,10 @@ const defaultState: CapitalState = {
     { id: "a4", name: "Коллекция Funko POP", type: "collection", min: 400_000, estimated: 450_000, max: 500_000, status: "owned", identity: true },
   ],
   targets: [
-    { id: "t1", name: "Квартира для семьи в Москве", meaning: "Основное жильё для моей семьи, расположенное в благостном районе Москвы. 100+ квадратных метров красивого свежего пространства с кабинетом для работы над моими проектами.", horizon: "37–40", status: "planned", estimatedCost: 35_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
-    { id: "t2", name: "Дом для семьи на природе", meaning: "Два этажа аскетичности из природных материалов с баскетбольной площадкой и гаражом в нескольких часах езды от Москвы. В доме есть пространство для хранения всех моих коллекций, а также комната для ретрогейминга и медитации с LEGO.", horizon: "40–50", status: "idea", estimatedCost: 35_000_000, saved: 0, nextStep: "Определить требования к локации и площади" },
+    { id: "t1", name: "Квартира в Москве", meaning: "Основное жильё для моей семьи, расположенное в благостном районе Москвы. 100+ квадратных метров красивого свежего пространства с кабинетом для работы над моими проектами.", horizon: "37–40", status: "planned", estimatedCost: 35_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
+    { id: "t2", name: "Дом на природе", meaning: "Два этажа аскетичности из природных материалов с баскетбольной площадкой и гаражом в нескольких часах езды от Москвы. В доме есть пространство для хранения всех моих коллекций, а также комната для ретрогейминга и медитации с LEGO.", horizon: "40–50", status: "idea", estimatedCost: 35_000_000, saved: 0, nextStep: "Определить требования к локации и площади" },
     { id: "t3", name: "Дом во Флориде", meaning: "Место, чтобы провести старость и забыть о существовании зимы.", horizon: "50+", status: "idea", estimatedCost: 30_000_000, saved: 0, nextStep: "Исследовать рынок southwest Florida" },
-    { id: "t4", name: "Квартира в СПб", meaning: "Точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 11_000_000, saved: 11_000_000, nextStep: "Поддерживать состояние" },
+    { id: "t4", name: "Квартира в Питере", meaning: "Точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 11_000_000, saved: 11_000_000, nextStep: "Поддерживать состояние" },
   ],
   expenses: [
     { id: "e1", name: "Аренда квартиры", amount: 80_000 },
@@ -285,15 +285,15 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
             merged.minIncome = defaultState.minIncome;
           }
 
-          // Patch target descriptions from current defaults when desc version
-          // changes, so users get updated copy without losing entered numbers.
+          // Patch target copy from current defaults when copy version changes,
+          // so users get updated names/descriptions without losing numbers.
           const storedDescVersion =
             typeof window !== "undefined" ? window.localStorage.getItem(DESC_VERSION_KEY) : null;
           if (storedDescVersion !== DESC_VERSION && Array.isArray(merged.targets)) {
-            const defaultMeanings = new Map(defaultState.targets.map((t) => [t.id, t.meaning]));
+            const defaultTargets = new Map(defaultState.targets.map((t) => [t.id, t]));
             merged.targets = merged.targets.map((t) => {
-              const newMeaning = defaultMeanings.get(t.id);
-              return newMeaning !== undefined ? { ...t, meaning: newMeaning } : t;
+              const targetCopy = defaultTargets.get(t.id);
+              return targetCopy ? { ...t, name: targetCopy.name, meaning: targetCopy.meaning } : t;
             });
             try {
               if (typeof window !== "undefined") {
