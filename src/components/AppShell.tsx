@@ -94,6 +94,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="p-4 border-t border-border">
             <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Этап</div>
             <div className="mt-1 text-sm text-foreground">37–40 · Фундамент</div>
+            <ResetButton />
           </div>
         </aside>
 
