@@ -352,7 +352,8 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     try {
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(MIGRATION_KEY);
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+      LEGACY_META_KEYS.forEach((key) => localStorage.removeItem(key));
       }
     } catch {}
     setState(defaultState);
