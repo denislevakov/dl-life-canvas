@@ -92,6 +92,14 @@ const STORAGE_KEY = "life-capital-v5";
 const LEGACY_STORAGE_KEYS = ["life-capital-v4", "life-capital-v3"];
 const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 
+// Forced reset token. Bump this string ONLY when you want every user's
+// local storage to be wiped on next load (e.g. after a data-shape change
+// or to clear stale demo values). After the wipe, the user's subsequent
+// edits persist normally — the token is stored alongside the data and
+// only triggers another reset if it changes again.
+const RESET_TOKEN = "2026-06-19-min-income-400k";
+const RESET_TOKEN_KEY = "life-capital-reset-token";
+
 const defaultState: CapitalState = {
   assets: [
     { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 10_500_000, estimated: 11_000_000, max: 11_500_000, status: "owned" },
@@ -223,6 +231,24 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   // current defaults after a deploy.
   useEffect(() => {
     try {
+      // Forced reset: if the stored token differs from the current one,
+      // wipe all known keys and fall through to defaults.
+      const storedToken =
+        typeof window !== "undefined" ? window.localStorage.getItem(RESET_TOKEN_KEY) : null;
+      if (storedToken !== RESET_TOKEN) {
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem(STORAGE_KEY);
+            LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+            LEGACY_META_KEYS.forEach((key) => window.localStorage.removeItem(key));
+            window.localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+          }
+        } catch {}
+        setState(defaultState);
+        return;
+      }
+
       let saved = readStoredCapitalState(STORAGE_KEY);
       let migratedFromLegacy = false;
 
@@ -392,6 +418,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(STORAGE_KEY);
       LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
       LEGACY_META_KEYS.forEach((key) => localStorage.removeItem(key));
+      localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
       }
     } catch {}
     setState(defaultState);
