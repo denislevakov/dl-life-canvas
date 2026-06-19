@@ -281,9 +281,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const estimatedCapital = state.assets.reduce((s, a) => s + a.estimated, 0);
   const maxCapital = state.assets.reduce((s, a) => s + a.max, 0);
   const monthlyMinimum = state.expenses.reduce((s, e) => s + e.amount, 0);
-  // Минимальный доход не может быть ниже прожиточного минимума —
-  // если расходы растут, доход подтягивается за ними.
-  const minIncome = Math.max(state.minIncome, monthlyMinimum);
+  const minIncome = state.minIncome;
   const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "active").reduce((s, i) => s + i.monthly, 0);
   const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
 
