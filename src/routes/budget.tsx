@@ -12,7 +12,7 @@ export const Route = createFileRoute("/budget")({
 
 function BudgetPage() {
   const { state, totals, updateExpense, addExpense, removeExpense } = useCapital();
-  const { monthlyMinimum } = totals;
+  const { monthlyMinimum, minIncome } = totals;
 
   const scenarios = state.incomeScenarios.map((income) => {
     const surplus = income - monthlyMinimum;
@@ -31,7 +31,7 @@ function BudgetPage() {
 
       <div className="grid md:grid-cols-3 gap-4 mb-8">
         <MetricCard label="Прожиточный минимум" value={formatRub(monthlyMinimum)} sublabel="в месяц" accent="gold" />
-        <MetricCard label="Минимальный доход" value={formatRub(state.minIncome)} sublabel="минимум для жизни" />
+        <MetricCard label="Минимальный доход" value={formatRub(minIncome)} sublabel="минимум для жизни" />
         <MetricCard label="Диапазон свободы" value={`${(state.freedomTarget.min / 1000).toFixed(0)}k – ${(state.freedomTarget.max / 1_000_000).toFixed(0)}M`} sublabel="комфортный коридор" accent="green" />
       </div>
 

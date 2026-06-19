@@ -150,10 +150,10 @@ const defaultState: CapitalState = {
       focus: "Наследие и качество жизни",
     },
   ],
-  incomeScenarios: [300_000, 500_000, 1_000_000, 2_000_000],
+  incomeScenarios: [400_000, 500_000, 1_000_000, 2_000_000],
   currentStageId: "s1",
   freedomTarget: { min: 1_000_000, max: 2_000_000 },
-  minIncome: 300_000,
+  minIncome: 400_000,
 };
 
 const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
@@ -185,6 +185,7 @@ interface Ctx {
     estimatedCapital: number;
     maxCapital: number;
     monthlyMinimum: number;
+    minIncome: number;
     activeIncome: number;
     passiveIncome: number;
   };
@@ -280,6 +281,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const estimatedCapital = state.assets.reduce((s, a) => s + a.estimated, 0);
   const maxCapital = state.assets.reduce((s, a) => s + a.max, 0);
   const monthlyMinimum = state.expenses.reduce((s, e) => s + e.amount, 0);
+  // Минимальный доход не может быть ниже прожиточного минимума —
+  // если расходы растут, доход подтягивается за ними.
+  const minIncome = Math.max(state.minIncome, monthlyMinimum);
   const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "active").reduce((s, i) => s + i.monthly, 0);
   const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
 
@@ -299,7 +303,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         updateIncome,
         removeIncome,
         reset,
-        totals: { minCapital, estimatedCapital, maxCapital, monthlyMinimum, activeIncome, passiveIncome },
+        totals: { minCapital, estimatedCapital, maxCapital, monthlyMinimum, minIncome, activeIncome, passiveIncome },
       }}
     >
       {children}
