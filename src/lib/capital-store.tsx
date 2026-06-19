@@ -285,6 +285,23 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
             merged.minIncome = defaultState.minIncome;
           }
 
+          // Patch target descriptions from current defaults when desc version
+          // changes, so users get updated copy without losing entered numbers.
+          const storedDescVersion =
+            typeof window !== "undefined" ? window.localStorage.getItem(DESC_VERSION_KEY) : null;
+          if (storedDescVersion !== DESC_VERSION && Array.isArray(merged.targets)) {
+            const defaultMeanings = new Map(defaultState.targets.map((t) => [t.id, t.meaning]));
+            merged.targets = merged.targets.map((t) => {
+              const newMeaning = defaultMeanings.get(t.id);
+              return newMeaning !== undefined ? { ...t, meaning: newMeaning } : t;
+            });
+            try {
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(DESC_VERSION_KEY, DESC_VERSION);
+              }
+            } catch {}
+          }
+
           // Persist the merged state into the current storage key so future
           // loads are stable and we don't have to re-run migration.
           try {
