@@ -56,6 +56,21 @@ export interface LifeStage {
   focus: string;
 }
 
+export type ChangeScope = "asset" | "expense" | "target" | "income" | "state";
+export type ChangeAction = "add" | "update" | "remove" | "reset";
+
+export interface ChangeEntry {
+  id: string;
+  ts: number;
+  scope: ChangeScope;
+  action: ChangeAction;
+  entityId?: string;
+  entityName?: string;
+  field?: string;
+  before?: unknown;
+  after?: unknown;
+}
+
 interface CapitalState {
   assets: Asset[];
   targets: TargetAsset[];
@@ -66,6 +81,7 @@ interface CapitalState {
   currentStageId: string;
   freedomTarget: { min: number; max: number };
   minIncome: number;
+  changeLog: ChangeEntry[];
 }
 
 const STORAGE_KEY = "life-capital-v4";
@@ -154,6 +170,7 @@ const defaultState: CapitalState = {
   currentStageId: "s1",
   freedomTarget: { min: 1_000_000, max: 2_000_000 },
   minIncome: 400_000,
+  changeLog: [],
 };
 
 const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
@@ -180,6 +197,7 @@ interface Ctx {
   updateIncome: (id: string, patch: Partial<IncomeSource>) => void;
   removeIncome: (id: string) => void;
   reset: () => void;
+  clearChangeLog: () => void;
   totals: {
     minCapital: number;
     estimatedCapital: number;
@@ -245,27 +263,104 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const update = (patch: Partial<CapitalState>) => commit((s) => ({ ...s, ...patch }));
+  const MAX_LOG = 200;
+  const pushLog = (s: CapitalState, entries: Omit<ChangeEntry, "id" | "ts">[]): CapitalState => {
+    if (!entries.length) return s;
+    const now = Date.now();
+    const fresh: ChangeEntry[] = entries.map((e, idx) => ({
+      ...e,
+      id: `c${now}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+      ts: now,
+    }));
+    const log = [...fresh, ...(s.changeLog ?? [])].slice(0, MAX_LOG);
+    return { ...s, changeLog: log };
+  };
+
+  const diffPatch = <T extends Record<string, unknown>>(
+    before: T,
+    patch: Partial<T>,
+  ): { field: string; before: unknown; after: unknown }[] => {
+    const out: { field: string; before: unknown; after: unknown }[] = [];
+    for (const k of Object.keys(patch)) {
+      const b = (before as Record<string, unknown>)[k];
+      const a = (patch as Record<string, unknown>)[k];
+      if (JSON.stringify(b) !== JSON.stringify(a)) out.push({ field: k, before: b, after: a });
+    }
+    return out;
+  };
+
+  const update = (patch: Partial<CapitalState>) =>
+    commit((s) => {
+      const entries: Omit<ChangeEntry, "id" | "ts">[] = Object.keys(patch)
+        .filter((k) => k !== "changeLog")
+        .map((k) => ({
+          scope: "state" as const,
+          action: "update" as const,
+          field: k,
+          before: (s as unknown as Record<string, unknown>)[k],
+          after: (patch as unknown as Record<string, unknown>)[k],
+        }));
+      return pushLog({ ...s, ...patch }, entries);
+    });
 
   const updateAsset = (id: string, patch: Partial<Asset>) =>
-    commit((s) => ({ ...s, assets: s.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
-  const addAsset = (a: Asset) => commit((s) => ({ ...s, assets: [...s.assets, a] }));
-  const removeAsset = (id: string) => commit((s) => ({ ...s, assets: s.assets.filter((a) => a.id !== id) }));
+    commit((s) => {
+      const cur = s.assets.find((a) => a.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, assets: s.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "asset", action: "update", entityId: id, entityName: cur.name, ...d })));
+    });
+  const addAsset = (a: Asset) =>
+    commit((s) => pushLog({ ...s, assets: [...s.assets, a] }, [{ scope: "asset", action: "add", entityId: a.id, entityName: a.name }]));
+  const removeAsset = (id: string) =>
+    commit((s) => {
+      const cur = s.assets.find((a) => a.id === id);
+      return pushLog({ ...s, assets: s.assets.filter((a) => a.id !== id) }, [{ scope: "asset", action: "remove", entityId: id, entityName: cur?.name }]);
+    });
 
   const updateExpense = (id: string, patch: Partial<Expense>) =>
-    commit((s) => ({ ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
-  const addExpense = (e: Expense) => commit((s) => ({ ...s, expenses: [...s.expenses, e] }));
-  const removeExpense = (id: string) => commit((s) => ({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }));
+    commit((s) => {
+      const cur = s.expenses.find((e) => e.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "expense", action: "update", entityId: id, entityName: cur.name, ...d })));
+    });
+  const addExpense = (e: Expense) =>
+    commit((s) => pushLog({ ...s, expenses: [...s.expenses, e] }, [{ scope: "expense", action: "add", entityId: e.id, entityName: e.name }]));
+  const removeExpense = (id: string) =>
+    commit((s) => {
+      const cur = s.expenses.find((e) => e.id === id);
+      return pushLog({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }, [{ scope: "expense", action: "remove", entityId: id, entityName: cur?.name }]);
+    });
 
   const updateTarget = (id: string, patch: Partial<TargetAsset>) =>
-    commit((s) => ({ ...s, targets: s.targets.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+    commit((s) => {
+      const cur = s.targets.find((t) => t.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, targets: s.targets.map((t) => (t.id === id ? { ...t, ...patch } : t)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "target", action: "update", entityId: id, entityName: cur.name, ...d })));
+    });
 
   const addIncome = (src: IncomeSource) =>
-    commit((s) => ({ ...s, incomeSources: [...s.incomeSources, src] }));
+    commit((s) => pushLog({ ...s, incomeSources: [...s.incomeSources, src] }, [{ scope: "income", action: "add", entityId: src.id, entityName: src.name }]));
   const updateIncome = (id: string, patch: Partial<IncomeSource>) =>
-    commit((s) => ({ ...s, incomeSources: s.incomeSources.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+    commit((s) => {
+      const cur = s.incomeSources.find((i) => i.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, incomeSources: s.incomeSources.map((i) => (i.id === id ? { ...i, ...patch } : i)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "income", action: "update", entityId: id, entityName: cur.name, ...d })));
+    });
   const removeIncome = (id: string) =>
-    commit((s) => ({ ...s, incomeSources: s.incomeSources.filter((i) => i.id !== id) }));
+    commit((s) => {
+      const cur = s.incomeSources.find((i) => i.id === id);
+      return pushLog({ ...s, incomeSources: s.incomeSources.filter((i) => i.id !== id) }, [{ scope: "income", action: "remove", entityId: id, entityName: cur?.name }]);
+    });
+
+  const clearChangeLog = () => commit((s) => ({ ...s, changeLog: [] }));
 
   const reset = () => {
     try {
@@ -301,6 +396,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         updateIncome,
         removeIncome,
         reset,
+        clearChangeLog,
         totals: { minCapital, estimatedCapital, maxCapital, monthlyMinimum, minIncome, activeIncome, passiveIncome },
       }}
     >
