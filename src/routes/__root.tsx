@@ -73,10 +73,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Life Capital — Дашборд управления капиталом" },
+      { title: "LIFE IS GOOD — Дашборд жизни" },
       { name: "description", content: "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Life Capital — Дашборд управления капиталом" },
+      { property: "og:title", content: "LIFE IS GOOD — Дашборд жизни" },
       { property: "og:description", content: "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
