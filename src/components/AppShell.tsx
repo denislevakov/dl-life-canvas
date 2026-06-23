@@ -67,16 +67,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="min-h-screen flex bg-background text-foreground">
         <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-border bg-[color:var(--surface-elevated)]/40 backdrop-blur-sm">
           <div className="px-6 py-7 border-b border-border">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Life Capital</div>
             <a
               href="/"
               onClick={(e) => {
                 e.preventDefault();
                 window.location.href = '/';
               }}
-              className="mt-1 inline-block font-display text-xl text-foreground hover:text-[color:var(--gold)] transition-colors cursor-pointer"
+              className="group inline-block cursor-pointer"
             >
-              Дашборд
+              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground group-hover:text-[color:var(--gold)] transition-colors">Life Capital</div>
+              <div className="mt-1 font-display text-xl text-foreground group-hover:text-[color:var(--gold)] transition-colors">LIFE IS GOOD</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground group-hover:text-[color:var(--gold)]/80 transition-colors">Дашборд жизни</div>
             </a>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-0.5">
