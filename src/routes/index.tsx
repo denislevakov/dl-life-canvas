@@ -9,7 +9,7 @@ import { ArrowUpRight, Compass } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Обзор · Life Capital" },
+      { title: "Обзор · LIFE IS GOOD" },
       { name: "description", content: "Главный обзор личного капитала, дохода и стратегии." },
     ],
   }),
