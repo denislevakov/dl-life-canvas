@@ -102,7 +102,7 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
-const DESC_VERSION = "v5-target-copy";
+const DESC_VERSION = "v6-target-copy";
 const DESC_VERSION_KEY = "life-capital-desc-version";
 
 const defaultState: CapitalState = {
