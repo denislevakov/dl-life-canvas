@@ -102,7 +102,7 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
-const DESC_VERSION = "v6-target-copy";
+const DESC_VERSION = "v7-target-copy";
 const DESC_VERSION_KEY = "life-capital-desc-version";
 
 const defaultState: CapitalState = {
@@ -113,7 +113,7 @@ const defaultState: CapitalState = {
     { id: "a4", name: "Коллекция Funko POP", type: "collection", min: 400_000, estimated: 450_000, max: 500_000, status: "owned", identity: true },
   ],
   targets: [
-    { id: "t1", name: "Квартира в Москве", meaning: "Основное жильё для моей семьи, расположенное в благостном районе Москвы. 100+ квадратных метров красивого свежего пространства с кабинетом для работы над моими проектами и домашним кинотеатром для кино и видеоигр.", horizon: "37–40", status: "planned", estimatedCost: 35_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
+    { id: "t1", name: "Квартира в Москве", meaning: "Основное жильё для моей семьи, расположенное в благостном районе Москвы. 100+ квадратных метров красивого свежего пространства с кабинетом для работы над моими проектами и домашним кинотеатром для кино и видеоигр. И обязательно с подземной парковой.", horizon: "37–40", status: "planned", estimatedCost: 35_000_000, saved: 0, nextStep: "Сформировать первый взнос и определить район" },
     { id: "t2", name: "Дом на природе", meaning: "Два этажа аскетичности из природных материалов с баскетбольной площадкой и гаражом в нескольких часах езды от Москвы. В доме есть пространство для хранения всех моих коллекций, а также комната для ретрогейминга и медитации с LEGO.", horizon: "40–50", status: "idea", estimatedCost: 35_000_000, saved: 0, nextStep: "Определить требования к локации и площади" },
     { id: "t3", name: "Дом во Флориде", meaning: "Место, чтобы провести старость и забыть о существовании зимы.", horizon: "50+", status: "idea", estimatedCost: 30_000_000, saved: 0, nextStep: "Исследовать рынок southwest Florida" },
     { id: "t4", name: "Квартира в Питере", meaning: "Точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 11_000_000, saved: 11_000_000, nextStep: "Поддерживать состояние" },
