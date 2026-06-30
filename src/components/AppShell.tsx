@@ -2,7 +2,8 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { CapitalProvider, useCapital } from "@/lib/capital-store";
-import { LayoutDashboard, Wallet, Target, Receipt, Briefcase, Map, Sparkles, RotateCcw, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { LayoutDashboard, Wallet, Target, Receipt, Briefcase, Map, Sparkles, RotateCcw, AlertTriangle, LogOut, UserCircle } from "lucide-react";
 
 const nav = [
   { to: "/", label: "Обзор", icon: LayoutDashboard },
@@ -13,6 +14,26 @@ const nav = [
   { to: "/life-map", label: "Карта жизни", icon: Map },
   { to: "/freedom", label: "Свобода", icon: Sparkles },
 ] as const;
+
+function AccountPanel() {
+  const { user, signOut } = useAuth();
+
+  return (
+    <div className="rounded-md border border-border bg-[color:var(--surface-elevated)]/50 p-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <UserCircle className="h-4 w-4 text-[color:var(--gold)]" />
+        <span className="truncate">{user?.email ?? "Аккаунт"}</span>
+      </div>
+      <button
+        onClick={() => void signOut()}
+        className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        <span>Выйти</span>
+      </button>
+    </div>
+  );
+}
 
 function ResetButton() {
   const { reset } = useCapital();
@@ -60,6 +81,7 @@ function ResetButton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState();
+  const { signOut } = useAuth();
   const path = location.pathname;
 
   return (
@@ -102,7 +124,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
           <div className="p-4 border-t border-border">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Этап</div>
+            <AccountPanel />
+            <div className="mt-4 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Этап</div>
             <div className="mt-1 text-sm text-foreground">37–40 · Фундамент</div>
             <ResetButton />
           </div>
@@ -111,7 +134,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="lg:hidden fixed top-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-b border-border">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="font-display text-lg">Life Capital</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">37–40</div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">37–40</div>
+              <button
+                onClick={() => void signOut()}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+                aria-label="Выйти"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           <div className="flex gap-1 overflow-x-auto px-3 pb-2 no-scrollbar">
             {nav.map((item) => {

@@ -83,7 +83,7 @@ function Index() {
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <MetricCard
           label="Комфортный доход в месяц"
-          value={`${(state.freedomTarget.min / 1000).toFixed(0)}k – ${(state.freedomTarget.max / 1_000_000).toFixed(0)}M ₽`}
+          value="1-2М ₽"
           sublabel="целевой коридор"
           accent="gold"
         />

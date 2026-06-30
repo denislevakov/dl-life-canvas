@@ -10,6 +10,8 @@ import {
 
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/AppShell";
+import { AuthGate } from "@/components/AuthGate";
+import { AuthProvider } from "@/lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -121,9 +123,13 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell>
-        <Outlet />
-      </AppShell>
+      <AuthProvider>
+        <AuthGate>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+        </AuthGate>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
