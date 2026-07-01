@@ -12,10 +12,25 @@ interface ParsedPdfResult {
 
 type TextContentItem = { str?: string; transform?: number[] };
 
+const collectMatches = (text: string, pattern: RegExp) => {
+  const matches: string[] = [];
+  const source = pattern.global ? pattern : new RegExp(pattern.source, `${pattern.flags}g`);
+  source.lastIndex = 0;
+
+  let match = source.exec(text);
+  while (match) {
+    if (match[1]) matches.push(match[1]);
+    if (match.index === source.lastIndex) source.lastIndex += 1;
+    match = source.exec(text);
+  }
+
+  return matches;
+};
+
 const normalizeAmount = (value: string) => {
   const clean = value.replace(/\s/g, "").replace(",", ".");
   const number = Number(clean);
-  return Number.isFinite(number) ? Math.abs(number) : 0;
+  return isFinite(number) ? Math.abs(number) : 0;
 };
 
 const normalizeDate = (value: string) => {
@@ -27,9 +42,19 @@ const normalizeDate = (value: string) => {
 
 const categoryForText = (text: string, categories: TransactionCategory[]) => {
   const lower = text.toLowerCase();
-  const findById = (id: string) => categories.find((category) => category.id === id)?.id;
-  const findByName = (pattern: RegExp) => categories.find((category) => pattern.test(category.name.toLowerCase()))?.id;
-  const find = (id: string, pattern: RegExp) => findById(id) ?? findByName(pattern);
+  const findById = (id: string) => {
+    for (let index = 0; index < categories.length; index += 1) {
+      if (categories[index].id === id) return categories[index].id;
+    }
+    return undefined;
+  };
+  const findByName = (pattern: RegExp) => {
+    for (let index = 0; index < categories.length; index += 1) {
+      if (pattern.test(categories[index].name.toLowerCase())) return categories[index].id;
+    }
+    return undefined;
+  };
+  const find = (id: string, pattern: RegExp) => findById(id) || findByName(pattern);
 
   if (/аренд|rent/.test(lower)) return find("cat_expense_e1", /аренд/);
   if (/квартплат|жкх|коммунал|utility|utilities/.test(lower)) return find("cat_expense_e2", /квартплат|жкх|коммунал/);
@@ -46,14 +71,14 @@ const categoryForText = (text: string, categories: TransactionCategory[]) => {
   if (/склад|storage|хранени/.test(lower)) return find("cat_expense_e9", /склад|хранени/);
   if (/фитнес|fitness|gym|спортзал|зал/.test(lower)) return find("cat_expense_e10", /фитнес|спортзал/);
   if (/клининг|cleaning|уборк/.test(lower)) return find("cat_expense_e11", /клининг|уборк/);
-  if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return findById("cat_income") ?? findByName(/доход/);
-  return findById("cat_other") ?? findByName(/другое/) ?? categories[0]?.id ?? "";
+  if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return findById("cat_income") || findByName(/доход/);
+  return findById("cat_other") || findByName(/другое/) || (categories[0] ? categories[0].id : "") || "";
 };
 
 const isIncomeLine = (line: string, amountText: string) => {
   const lower = line.toLowerCase();
   if (/зачисление|поступление|salary|зарплат|возврат|cashback|кэшбэк|перевод от|пополнение/.test(lower)) return true;
-  return amountText.trim().startsWith("+");
+  return amountText.trim().charAt(0) === "+";
 };
 
 const descriptionFromNextLine = (line: string) =>
@@ -76,7 +101,7 @@ const parseSberStatementLines = (lines: string[], categories: TransactionCategor
     if (!dateMatch || !timeMatch) return;
 
     const tail = line.replace(dateMatch[1], "").replace(timeMatch[0], "").replace(/\s+/g, " ").trim();
-    const amounts = [...tail.matchAll(amountPattern)].map((match) => match[1]);
+    const amounts = collectMatches(tail, amountPattern);
     if (!amounts.length) return;
 
     // Sber rows usually have operation amount and account balance.
@@ -88,7 +113,7 @@ const parseSberStatementLines = (lines: string[], categories: TransactionCategor
 
     const balanceText = amounts.length ? amounts[amounts.length - 1] : "";
     const categoryText = tail.replace(amountText, "").replace(balanceText, "").replace(/\s+/g, " ").trim();
-    const nextDescription = descriptionFromNextLine(lines[index + 1] ?? "");
+    const nextDescription = descriptionFromNextLine(lines[index + 1] || "");
     const combinedText = [categoryText, nextDescription].filter(Boolean).join(" · ");
     const description = combinedText || "Операция из PDF";
     const type = isIncomeLine(combinedText, amountText) ? "income" : "expense";
@@ -99,7 +124,7 @@ const parseSberStatementLines = (lines: string[], categories: TransactionCategor
       description,
       amount,
       type,
-      categoryId: type === "income" ? (categories.find((category) => category.id === "cat_income")?.id ?? categoryForText(combinedText, categories)) : categoryForText(combinedText, categories),
+      categoryId: type === "income" ? (categoryForText("income", categories) || categoryForText(combinedText, categories)) : categoryForText(combinedText, categories),
       source: "pdf",
     });
   });
@@ -124,7 +149,7 @@ const parseTransactionsFromText = (text: string, categories: TransactionCategory
     const dateMatch = line.match(datePattern);
     if (!dateMatch) return;
 
-    const amounts = [...line.matchAll(amountPattern)].map((match) => match[1]);
+    const amounts = collectMatches(line, amountPattern);
     const amountText = amounts.length ? amounts[amounts.length - 1] : undefined;
     if (!amountText) return;
 
@@ -147,7 +172,7 @@ const parseTransactionsFromText = (text: string, categories: TransactionCategory
       description,
       amount,
       type,
-      categoryId: type === "income" ? (categories.find((category) => category.id === "cat_income")?.id ?? categoryForText(line, categories)) : categoryForText(line, categories),
+      categoryId: type === "income" ? (categoryForText("income", categories) || categoryForText(line, categories)) : categoryForText(line, categories),
       source: "pdf",
     });
   });
@@ -158,9 +183,9 @@ const parseTransactionsFromText = (text: string, categories: TransactionCategory
 const linesFromPdfItems = (items: TextContentItem[]) => {
   const positioned = items
     .map((item) => ({
-      text: (item.str ?? "").trim(),
-      x: item.transform?.[4] ?? 0,
-      y: item.transform?.[5] ?? 0,
+      text: (item.str || "").trim(),
+      x: item.transform ? item.transform[4] || 0 : 0,
+      y: item.transform ? item.transform[5] || 0 : 0,
     }))
     .filter((item) => item.text);
 
