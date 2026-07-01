@@ -395,6 +395,7 @@ interface Ctx {
     activeIncome: number;
     passiveIncome: number;
     currentBalance: number;
+    cardCashBaseBalance: number;
     cardCashBalance: number;
     safetyBalance: number;
     monthExpenseTotal: number;
@@ -833,6 +834,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           activeIncome,
           passiveIncome,
           currentBalance,
+          cardCashBaseBalance,
           cardCashBalance,
           safetyBalance,
           monthExpenseTotal,

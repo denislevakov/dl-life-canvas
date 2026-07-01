@@ -212,10 +212,12 @@ function BudgetPage() {
 
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="text-[10px] uppercase tracking-[0.26em] text-muted-foreground">Карта / наличные</div>
-          <div className="mt-6 font-display text-5xl tabular text-foreground">
-            <EditableNumber value={totals.cardCashBalance} onChange={setCardCashBalance} className="font-display text-5xl" />
+          <div className="mt-6 font-display text-5xl tabular text-foreground">{formatRub(totals.cardCashBalance)}</div>
+          <div className="mt-5 text-sm text-muted-foreground">после расходов</div>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-xs text-muted-foreground">
+            <span>до расходов</span>
+            <EditableNumber value={totals.cardCashBaseBalance} onChange={setCardCashBalance} className="text-sm text-foreground" />
           </div>
-          <div className="mt-5 text-sm text-muted-foreground">доступные деньги</div>
         </section>
 
         <section className="rounded-xl border border-border bg-card p-6">
