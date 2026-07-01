@@ -166,8 +166,9 @@ function BudgetPage() {
       }
       importTransactions(result.transactions);
       setImportMessage(`Импортировано операций: ${result.transactions.length}. Распределение обновилось в статьях расходов.`);
-    } catch {
-      setImportMessage("Не удалось прочитать PDF. Попробуй другую выписку или добавь операции вручную.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "неизвестная ошибка";
+      setImportMessage(`Не удалось прочитать PDF: ${detail}`);
     }
   };
 

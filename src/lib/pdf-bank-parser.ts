@@ -189,7 +189,7 @@ const linesFromPdfItems = (items: TextContentItem[]) => {
 
 export async function parseBankPdf(file: File, categories: TransactionCategory[]): Promise<ParsedPdfResult> {
   const buffer = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: buffer }).promise;
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
   const pageTexts: string[] = [];
 
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
