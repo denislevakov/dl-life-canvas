@@ -674,10 +674,16 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const importTransactions = (transactions: MoneyTransaction[]) =>
     commit((s) => {
       if (!transactions.length) return s;
-      const existing = new Set((s.transactions ?? []).map((transaction) => `${transaction.date}|${transaction.amount}|${transaction.description}`));
-      const fresh = transactions.filter((transaction) => !existing.has(`${transaction.date}|${transaction.amount}|${transaction.description}`));
-      if (!fresh.length) return s;
-      const balanceDelta = fresh.reduce(
+      const keyFor = (transaction: MoneyTransaction) => `${transaction.date}|${transaction.amount}|${transaction.description}`;
+      const existingTransactions = s.transactions ?? [];
+      const existing = new Map(existingTransactions.map((transaction) => [keyFor(transaction), transaction]));
+      const fresh = transactions.filter((transaction) => !existing.has(keyFor(transaction)));
+      const existingWithoutAccount = transactions
+        .map((transaction) => existing.get(keyFor(transaction)))
+        .filter((transaction): transaction is MoneyTransaction => Boolean(transaction && !transaction.accountId));
+      const balanceTransactions = [...fresh, ...existingWithoutAccount];
+      if (!balanceTransactions.length) return s;
+      const balanceDelta = balanceTransactions.reduce(
         (sum, transaction) => sum + (transaction.type === "income" ? transaction.amount : -transaction.amount),
         0,
       );
@@ -697,14 +703,19 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
                 balance: balanceDelta,
               },
             ];
+      const accountId = nextAccounts[accountIndex >= 0 ? accountIndex : nextAccounts.length - 1].id;
       const freshWithAccount = fresh.map((transaction) => ({
         ...transaction,
-        accountId: transaction.accountId ?? nextAccounts[accountIndex >= 0 ? accountIndex : nextAccounts.length - 1].id,
+        accountId: transaction.accountId ?? accountId,
       }));
+      const existingWithoutAccountIds = new Set(existingWithoutAccount.map((transaction) => transaction.id));
+      const nextTransactions = existingTransactions.map((transaction) =>
+        existingWithoutAccountIds.has(transaction.id) ? { ...transaction, accountId } : transaction,
+      );
       return pushLog(
-        { ...s, cashAccounts: nextAccounts, transactions: [...freshWithAccount, ...(s.transactions ?? [])] },
+        { ...s, cashAccounts: nextAccounts, transactions: [...freshWithAccount, ...nextTransactions] },
         [
-          { scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` },
+          { scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}, учтено в балансе ${balanceTransactions.length}` },
           { scope: "cash_account", action: "update", entityName: "Карта / наличные", field: "balance", after: balanceDelta },
         ],
       );
