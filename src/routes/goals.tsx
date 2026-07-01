@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, Lightbulb, Pencil, PlayCircle, Plus, Trash2, WalletCards } from "lucide-react";
+import { CalendarDays, CheckCircle2, GripVertical, Lightbulb, Pencil, PlayCircle, Plus, Trash2, WalletCards } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
@@ -23,11 +23,6 @@ const statusControls: { value: LifeGoalStatus; label: string; icon: typeof PlayC
   { value: "active", label: "В работе", icon: PlayCircle },
   { value: "done", label: "Выполнено", icon: CheckCircle2 },
 ];
-
-const statusOrder: Record<Exclude<LifeGoalStatus, "backlog">, number> = {
-  active: 0,
-  done: 1,
-};
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const currentYear = () => String(new Date().getFullYear());
@@ -60,10 +55,11 @@ function EmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
 }
 
 function GoalsPage() {
-  const { state, addLifeGoal, updateLifeGoal, removeLifeGoal } = useCapital();
+  const { state, update, addLifeGoal, updateLifeGoal, removeLifeGoal } = useCapital();
   const goals = state.lifeGoals ?? [];
   const [filter, setFilter] = useState<Filter>("all");
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [draggedGoalId, setDraggedGoalId] = useState<string | null>(null);
   const [backlogTitle, setBacklogTitle] = useState("");
   const [draft, setDraft] = useState({
     title: "",
@@ -83,13 +79,7 @@ function GoalsPage() {
   const visibleGoals = useMemo(() => {
     return goals
       .filter((goal) => goal.status !== "backlog")
-      .filter((goal) => (filter === "all" ? true : goal.status === filter))
-      .slice()
-      .sort((a, b) => {
-        const statusDiff = statusOrder[a.status as Exclude<LifeGoalStatus, "backlog">] - statusOrder[b.status as Exclude<LifeGoalStatus, "backlog">];
-        if (statusDiff !== 0) return statusDiff;
-        return (a.deadline || "9999-12-31").localeCompare(b.deadline || "9999-12-31");
-      });
+      .filter((goal) => (filter === "all" ? true : goal.status === filter));
   }, [filter, goals]);
 
   const backlogGoals = useMemo(
@@ -138,6 +128,19 @@ function GoalsPage() {
       deadline: todayIso(),
       budget: 0,
     });
+  };
+
+  const reorderGoals = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const allGoals = [...(state.lifeGoals ?? [])];
+    const sourceIndex = allGoals.findIndex((goal) => goal.id === sourceId);
+    const targetIndex = allGoals.findIndex((goal) => goal.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || allGoals[sourceIndex].status === "backlog" || allGoals[targetIndex].status === "backlog") return;
+    const [moved] = allGoals.splice(sourceIndex, 1);
+    const nextTargetIndex = allGoals.findIndex((goal) => goal.id === targetId);
+    allGoals.splice(nextTargetIndex, 0, moved);
+    update({ lifeGoals: allGoals });
+    setDraggedGoalId(null);
   };
 
   return (
@@ -239,7 +242,30 @@ function GoalsPage() {
           {visibleGoals.map((goal) => {
             const isEditing = editingGoalId === goal.id;
             return (
-              <div key={goal.id} className="rounded-xl border border-border bg-card p-5">
+              <div
+                key={goal.id}
+                draggable={!isEditing}
+                onDragStart={(event) => {
+                  if (isEditing) return;
+                  setDraggedGoalId(goal.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", goal.id);
+                }}
+                onDragOver={(event) => {
+                  if (draggedGoalId && draggedGoalId !== goal.id && !isEditing) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const sourceId = draggedGoalId ?? event.dataTransfer.getData("text/plain");
+                  if (sourceId) reorderGoals(sourceId, goal.id);
+                }}
+                onDragEnd={() => setDraggedGoalId(null)}
+                className={
+                  "rounded-xl border border-border bg-card p-5 transition-opacity " +
+                  (!isEditing ? "cursor-grab active:cursor-grabbing " : "") +
+                  (draggedGoalId === goal.id ? "opacity-50" : "")
+                }
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     {isEditing ? (
@@ -257,18 +283,25 @@ function GoalsPage() {
                       <span>{formatGoalDeadline(goal.deadline)}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setEditingGoalId(isEditing ? null : goal.id)}
-                    className={
-                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
-                      (isEditing
-                        ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-                        : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
-                    }
-                  >
-                    {isEditing ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                    {isEditing ? "Готово" : "Редактировать"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {!isEditing ? (
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground" title="Перетащить">
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                    ) : null}
+                    <button
+                      onClick={() => setEditingGoalId(isEditing ? null : goal.id)}
+                      className={
+                        "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
+                        (isEditing
+                          ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                          : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
+                      }
+                    >
+                      {isEditing ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                      {isEditing ? "Готово" : "Редактировать"}
+                    </button>
+                  </div>
                 </div>
 
                 {isEditing ? (

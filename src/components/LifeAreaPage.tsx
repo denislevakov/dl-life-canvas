@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -29,12 +29,6 @@ const filterOptions: { value: Filter; label: string }[] = [
   { value: "done", label: "Выполнено" },
 ];
 
-const statusOrder: Record<LifeAreaStatus, number> = {
-  active: 0,
-  backlog: 1,
-  done: 2,
-};
-
 const formatDeadline = (value: string) => {
   if (!value) return "без срока";
   const date = new Date(`${value}T00:00:00`);
@@ -43,9 +37,11 @@ const formatDeadline = (value: string) => {
 };
 
 export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, emptyTitle }: LifeAreaPageProps) {
-  const { state, addLifeArea, updateLifeArea, removeLifeArea } = useCapital();
+  const { state, update, addLifeArea, updateLifeArea, removeLifeArea } = useCapital();
   const [filter, setFilter] = useState<Filter>("all");
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
+  const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
+  const [draggedAreaId, setDraggedAreaId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "" });
 
   const areas = useMemo(() => (state.lifeAreas ?? []).filter((area) => area.kind === kind), [kind, state.lifeAreas]);
@@ -59,14 +55,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   }, [areas]);
 
   const visibleAreas = useMemo(() => {
-    return areas
-      .filter((area) => (filter === "all" ? true : area.status === filter))
-      .slice()
-      .sort((a, b) => {
-        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
-        if (statusDiff !== 0) return statusDiff;
-        return a.title.localeCompare(b.title, "ru");
-      });
+    return areas.filter((area) => (filter === "all" ? true : area.status === filter));
   }, [areas, filter]);
 
   const addArea = () => {
@@ -111,6 +100,19 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
   const removeAction = (area: LifeArea, actionId: string) => {
     updateLifeArea(area.id, { actions: (area.actions ?? []).filter((action) => action.id !== actionId) });
+  };
+
+  const reorderAreas = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const allAreas = [...(state.lifeAreas ?? [])];
+    const sourceIndex = allAreas.findIndex((area) => area.id === sourceId);
+    const targetIndex = allAreas.findIndex((area) => area.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || allAreas[sourceIndex].kind !== kind || allAreas[targetIndex].kind !== kind) return;
+    const [moved] = allAreas.splice(sourceIndex, 1);
+    const nextTargetIndex = allAreas.findIndex((area) => area.id === targetId);
+    allAreas.splice(nextTargetIndex, 0, moved);
+    update({ lifeAreas: allAreas });
+    setDraggedAreaId(null);
   };
 
   return (
@@ -197,7 +199,30 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
             const openActions = (area.actions ?? []).filter((action) => action.status === "active").length;
 
             return (
-              <article key={area.id} className="rounded-xl border border-border bg-card p-5">
+              <article
+                key={area.id}
+                draggable={!isEditing}
+                onDragStart={(event) => {
+                  if (isEditing) return;
+                  setDraggedAreaId(area.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", area.id);
+                }}
+                onDragOver={(event) => {
+                  if (draggedAreaId && draggedAreaId !== area.id && !isEditing) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const sourceId = draggedAreaId ?? event.dataTransfer.getData("text/plain");
+                  if (sourceId) reorderAreas(sourceId, area.id);
+                }}
+                onDragEnd={() => setDraggedAreaId(null)}
+                className={
+                  "rounded-xl border border-border bg-card p-5 transition-opacity " +
+                  (!isEditing ? "cursor-grab active:cursor-grabbing " : "") +
+                  (draggedAreaId === area.id ? "opacity-50" : "")
+                }
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     {isEditing ? (
@@ -219,18 +244,25 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setEditingAreaId(isEditing ? null : area.id)}
-                    className={
-                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
-                      (isEditing
-                        ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-                        : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
-                    }
-                  >
-                    {isEditing ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                    {isEditing ? "Готово" : "Редактировать"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {!isEditing ? (
+                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground" title="Перетащить">
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                    ) : null}
+                    <button
+                      onClick={() => setEditingAreaId(isEditing ? null : area.id)}
+                      className={
+                        "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
+                        (isEditing
+                          ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                          : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
+                      }
+                    >
+                      {isEditing ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                      {isEditing ? "Готово" : "Редактировать"}
+                    </button>
+                  </div>
                 </div>
 
                 {isEditing ? (
@@ -337,15 +369,33 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                     <div className="mt-4 text-sm leading-6 text-muted-foreground">{area.description || "Описание не добавлено"}</div>
                     {(area.actions ?? []).length ? (
                       <div className="mt-5 space-y-2">
-                        {(area.actions ?? []).slice(0, 3).map((action) => (
-                          <div key={action.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/55 px-3 py-2">
-                            <div className="text-sm text-foreground">{action.title}</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{formatDeadline(action.deadline)}</span>
-                              <StatusBadge status={action.status} />
+                        {(area.actions ?? []).map((action) => {
+                          const isExpanded = expandedActionId === action.id;
+                          return (
+                            <div key={action.id} className="rounded-lg border border-border bg-background/55">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
+                                className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-elevated)]/60"
+                              >
+                                <div className="min-w-0 flex-1 text-sm text-foreground">{action.title}</div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{formatDeadline(action.deadline)}</span>
+                                  <StatusBadge status={action.status} />
+                                  <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isExpanded ? "rotate-180 text-[color:var(--gold)]" : "")} />
+                                </div>
+                              </button>
+                              {isExpanded ? (
+                                <div className="border-t border-border px-3 py-3">
+                                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Комментарий</div>
+                                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                                    {action.note || "Комментарий не добавлен"}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="mt-5 rounded-lg border border-dashed border-border py-5 text-center text-sm text-muted-foreground">
