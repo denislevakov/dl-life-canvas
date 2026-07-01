@@ -4,8 +4,13 @@ import { FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
-import { useCapital, type CashAccountKind, type MoneyTransactionType } from "@/lib/capital-store";
+import { useCapital, type CashAccountKind, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
 import { formatMillions, formatRub } from "@/lib/format";
+
+type ParsedPdfResult = {
+  transactions: MoneyTransaction[];
+  textPreview?: string;
+};
 
 export const Route = createFileRoute("/budget")({
   head: () => ({
@@ -156,10 +161,22 @@ function BudgetPage() {
 
   const handlePdfUpload = async (file: File | undefined) => {
     if (!file) return;
-    setImportMessage("Читаю PDF локально в браузере...");
+    setImportMessage("Читаю PDF на сервере...");
     try {
-      const { parseBankPdf } = await import("@/lib/pdf-bank-parser");
-      const result = await parseBankPdf(file, categories);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("categories", JSON.stringify(categories));
+
+      const response = await fetch("/api/parse-bank-pdf", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json()) as ParsedPdfResult | { message?: string };
+      if (!response.ok) {
+        throw new Error("message" in payload && payload.message ? payload.message : "сервер не смог разобрать PDF");
+      }
+
+      const result = payload as ParsedPdfResult;
       if (!result.transactions.length) {
         setImportMessage("PDF прочитан, но операции не распознаны. Можно добавить расходы вручную или позже настроить парсер под конкретный банк.");
         return;
