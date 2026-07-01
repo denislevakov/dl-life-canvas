@@ -25,7 +25,7 @@ import {
 const nav = [
   { to: "/", label: "Обзор", icon: LayoutDashboard },
   { to: "/projects", label: "Проекты", icon: FolderKanban },
-  { to: "/goals", label: "Цели", icon: ListChecks },
+  { to: "/goals", label: "Цели и задачи", icon: ListChecks },
   { to: "/income-sources", label: "Источники дохода", icon: Briefcase },
   { to: "/budget", label: "Доход и расходы", icon: Receipt },
   { to: "/assets", label: "Активы", icon: Wallet },

@@ -127,7 +127,7 @@ function Index() {
       <div className="mb-6 rounded-xl border border-border bg-card p-6">
         <div className="mb-5">
           <div className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">Главные фокусы</div>
-          <div className="mt-1 font-display text-xl">Проекты и ближайшие цели</div>
+          <div className="mt-1 font-display text-xl">Проекты и ближайшие цели и задачи</div>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -169,7 +169,7 @@ function Index() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 <ListChecks className="h-3.5 w-3.5 text-[color:var(--gold)]" />
-                Ближайшие цели
+                Ближайшие цели и задачи
               </div>
               <Link to="/goals" className="inline-flex items-center gap-1 text-xs text-[color:var(--gold)] hover:underline">
                 Все <ArrowUpRight className="h-3.5 w-3.5" />
@@ -187,6 +187,9 @@ function Index() {
                       </div>
                     </div>
                     {goal.note ? <div className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{goal.note}</div> : null}
+                    <div className="mt-2 text-xs tabular text-muted-foreground">
+                      Бюджет: <span className="text-foreground">{goal.budget > 0 ? formatRub(goal.budget) : "не задан"}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -222,7 +225,7 @@ function Index() {
 
         <div className="rounded-xl border border-border bg-card p-6">
           <div className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
-            Главные цели периода {currentStage.period}
+            Главные цели и задачи периода {currentStage.period}
           </div>
           <div className="mt-3 font-display text-xl">{currentStage.focus}</div>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">

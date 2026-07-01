@@ -45,7 +45,7 @@ function LifeMap() {
                       </div>
                     </div>
 
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Главные цели</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Главные цели и задачи</div>
                     <ul className="mt-2 space-y-1.5">
                       {stage.goals.map((g, i) => (
                         <li key={i} className="text-sm text-foreground flex gap-2">

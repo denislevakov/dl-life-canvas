@@ -5,13 +5,14 @@ import { CalendarDays, CheckCircle2, GripVertical, Lightbulb, Pencil, PlayCircle
 import { EditableNumber } from "@/components/EditableNumber";
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { formatRub } from "@/lib/format";
 import { useCapital, type LifeGoal, type LifeGoalStatus } from "@/lib/capital-store";
 
 export const Route = createFileRoute("/goals")({
   head: () => ({
     meta: [
-      { title: "Цели · LIFE IS GOOD" },
-      { name: "description", content: "Бытовые и годовые цели, прогресс, сроки и бюджет." },
+      { title: "Цели и задачи · LIFE IS GOOD" },
+      { name: "description", content: "Бытовые и годовые цели и задачи, сроки и бюджет." },
     ],
   }),
   component: GoalsPage,
@@ -39,16 +40,16 @@ function EmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
       <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-md border border-border bg-[color:var(--surface-elevated)] text-[color:var(--gold)]">
         <CheckCircle2 className="h-5 w-5" />
       </div>
-      <div className="mt-4 font-display text-xl text-foreground">Целей пока нет</div>
+      <div className="mt-4 font-display text-xl text-foreground">Целей и задач пока нет</div>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-        Добавь бытовые, годовые или сезонные цели, чтобы держать их рядом с главным обзором.
+        Добавь бытовые, годовые или сезонные цели и задачи, чтобы держать их рядом с главным обзором.
       </p>
       <button
         onClick={onQuickAdd}
         className="mt-5 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
         <Plus className="h-4 w-4" />
-        Добавить цель
+        Добавить задачу
       </button>
     </div>
   );
@@ -123,7 +124,7 @@ function GoalsPage() {
 
   const quickAdd = () => {
     setDraft({
-      title: "Новая цель",
+      title: "Новая задача",
       period: currentYear(),
       deadline: todayIso(),
       budget: 0,
@@ -146,22 +147,22 @@ function GoalsPage() {
   return (
     <PageContainer>
       <PageHeader
-        eyebrow="Годовые и бытовые цели"
-        title="Цели"
+        eyebrow="Годовые и бытовые цели и задачи"
+        title="Цели и задачи"
         description="Сюда попадают вещи, которые важны для жизни прямо сейчас: покупки, поездки, переезды, привычки и небольшие проекты."
       />
 
       <div className="mb-8 grid gap-4 md:grid-cols-4">
-        <MetricCard label="Всего целей" value={stats.total} sublabel="оформленные цели" />
+        <MetricCard label="Всего" value={stats.total} sublabel="оформленные цели и задачи" />
         <MetricCard label="Активные" value={stats.active} sublabel="в работе сейчас" accent="gold" />
-        <MetricCard label="Выполнено" value={stats.done} sublabel="закрытые цели" accent="green" />
+        <MetricCard label="Выполнено" value={stats.done} sublabel="закрытые цели и задачи" accent="green" />
         <MetricCard label="Бэклог" value={stats.backlog} sublabel="идеи без срока" />
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-card p-5">
         <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_120px_160px_150px_auto] lg:items-end">
           <label className="block">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Новая цель</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Новая цель или задача</span>
             <input
               value={draft.title}
               onChange={(event) => setDraft((value) => ({ ...value, title: event.target.value }))}
@@ -281,9 +282,36 @@ function GoalsPage() {
                       <StatusBadge status={goal.status} />
                       <span>{goal.period || "без периода"}</span>
                       <span>{formatGoalDeadline(goal.deadline)}</span>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 tabular">
+                        <WalletCards className="h-3.5 w-3.5 text-[color:var(--gold)]" />
+                        {goal.budget > 0 ? formatRub(goal.budget) : "Бюджет не задан"}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {!isEditing ? (
+                      <div className="flex overflow-hidden rounded-md border border-border">
+                        {statusControls.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <button
+                              key={item.value}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={() => updateLifeGoal(goal.id, { status: item.value })}
+                              className={
+                                "inline-flex h-9 items-center gap-1.5 px-2.5 text-xs transition-colors " +
+                                (goal.status === item.value
+                                  ? "bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                                  : "text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
+                              }
+                            >
+                              <Icon className="h-3.5 w-3.5" />
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                     {!isEditing ? (
                       <div className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground" title="Перетащить">
                         <GripVertical className="h-4 w-4" />
