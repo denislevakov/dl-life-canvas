@@ -98,15 +98,14 @@ function BudgetPage() {
   );
 
   const setCardCashBalance = (nextBalance: number) => {
-    const nextBaseBalance = nextBalance - totals.monthIncomeTotal + totals.monthExpenseTotal;
     const otherBalance = cardCashAccounts
       .filter((account) => account.id !== primaryCardCashAccount?.id)
       .reduce((sum, account) => sum + account.balance, 0);
     if (primaryCardCashAccount) {
-      updateCashAccount(primaryCardCashAccount.id, { name: "Карта / наличные", kind: "card", balance: nextBaseBalance - otherBalance });
+      updateCashAccount(primaryCardCashAccount.id, { name: "Карта / наличные", kind: "card", balance: nextBalance - otherBalance });
       return;
     }
-    addCashAccount({ id: `ca_${Date.now()}`, name: "Карта / наличные", kind: "card", balance: nextBaseBalance });
+    addCashAccount({ id: `ca_${Date.now()}`, name: "Карта / наличные", kind: "card", balance: nextBalance });
   };
 
   const setSafetyBalance = (nextBalance: number) => {
