@@ -784,7 +784,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const transactions = state.transactions ?? [];
   const monthKey = new Date().toISOString().slice(0, 7);
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
-  const monthExpenseTotal = monthTransactions.filter((transaction) => transaction.type === "expense").reduce((s, transaction) => s + transaction.amount, 0);
+  const monthExpenseTotal = monthTransactions
+    .filter((transaction) => transaction.type === "expense" && transaction.categoryId !== REVIEW_CATEGORY_ID)
+    .reduce((s, transaction) => s + transaction.amount, 0);
   const monthIncomeTotal = monthTransactions
     .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
     .reduce((s, transaction) => s + transaction.amount, 0);

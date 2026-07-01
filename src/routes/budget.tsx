@@ -67,14 +67,14 @@ function BudgetPage() {
 
   const expenseByCategory = useMemo(() => {
     const monthKey = new Date().toISOString().slice(0, 7);
-    const rows = categories.map((category) => ({
+    const rows = expenseCategories.map((category) => ({
       category,
       total: transactions
         .filter((transaction) => transaction.type === "expense" && transaction.categoryId === category.id && transaction.date.startsWith(monthKey))
         .reduce((sum, transaction) => sum + transaction.amount, 0),
     }));
     return rows.filter((row) => row.total > 0).sort((a, b) => b.total - a.total);
-  }, [categories, transactions]);
+  }, [expenseCategories, transactions]);
 
   const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), 1);
   const monthlyMinimum = totals.monthlyMinimum;
@@ -213,10 +213,16 @@ function BudgetPage() {
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="text-[10px] uppercase tracking-[0.26em] text-muted-foreground">Карта / наличные</div>
           <div className="mt-6 font-display text-5xl tabular text-foreground">{formatRub(totals.cardCashBalance)}</div>
-          <div className="mt-5 text-sm text-muted-foreground">после расходов</div>
-          <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-xs text-muted-foreground">
-            <span>до расходов</span>
-            <EditableNumber value={totals.cardCashBaseBalance} onChange={setCardCashBalance} className="text-sm text-foreground" />
+          <div className="mt-5 text-sm text-muted-foreground">доступные деньги</div>
+          <div className="mt-3 grid gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-3">
+              <span>введено</span>
+              <EditableNumber value={totals.cardCashBaseBalance} onChange={setCardCashBalance} className="text-sm text-foreground" />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span>расходы</span>
+              <span className="tabular text-foreground">−{formatRub(totals.monthExpenseTotal)}</span>
+            </div>
           </div>
         </section>
 
