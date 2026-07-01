@@ -5,7 +5,7 @@ import { FileText, Plus, Trash2, Upload } from "lucide-react";
 import { EditableNumber } from "@/components/EditableNumber";
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
 import { useCapital, type CashAccountKind, type MoneyTransactionType } from "@/lib/capital-store";
-import { formatRub } from "@/lib/format";
+import { formatMillions, formatRub } from "@/lib/format";
 
 export const Route = createFileRoute("/budget")({
   head: () => ({
@@ -34,6 +34,9 @@ function BudgetPage() {
     updateCashAccount,
     addCashAccount,
     removeCashAccount,
+    updateExpense,
+    addExpense,
+    removeExpense,
     addTransaction,
     importTransactions,
     addTransactionCategory,
@@ -67,6 +70,17 @@ function BudgetPage() {
   }, [categories, transactions]);
 
   const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), 1);
+  const monthlyMinimum = totals.monthlyMinimum;
+  const scenarios = state.incomeScenarios.map((income) => {
+    const surplus = income - monthlyMinimum;
+    return {
+      income,
+      surplus,
+      yearly: surplus * 12,
+      coverage: monthlyMinimum ? income / monthlyMinimum : 0,
+      savingsRate: income ? (surplus / income) * 100 : 0,
+    };
+  });
 
   const addManualTransaction = () => {
     if (!draft.description.trim() || !draft.amount || !draft.categoryId) return;
@@ -134,6 +148,83 @@ function BudgetPage() {
         <MetricCard label="Карта / наличные" value={formatRub(totals.cardCashBalance)} sublabel="доступные деньги" />
         <MetricCard label="Подушка" value={formatRub(totals.safetyBalance)} sublabel="резерв" accent="green" />
         <MetricCard label="Расходы за месяц" value={formatRub(totals.monthExpenseTotal)} sublabel={monthLabel()} />
+      </div>
+
+      <div className="mb-6 grid gap-6 lg:grid-cols-5">
+        <section className="rounded-xl border border-border bg-card p-6 lg:col-span-3">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Минимальный сценарий</div>
+              <div className="mt-1 font-display text-xl">Расходы в месяц</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Итого</div>
+              <div className="font-display text-xl tabular text-[color:var(--gold)]">{formatRub(monthlyMinimum)}</div>
+            </div>
+          </div>
+
+          <div className="divide-y divide-border">
+            {state.expenses.map((expense) => {
+              const share = (expense.amount / (monthlyMinimum || 1)) * 100;
+              return (
+                <div key={expense.id} className="flex items-center gap-3 py-3">
+                  <input
+                    value={expense.name}
+                    onChange={(event) => updateExpense(expense.id, { name: event.target.value })}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none focus:text-[color:var(--gold)]"
+                  />
+                  <div className="w-20 text-right text-[11px] tabular text-muted-foreground">{share.toFixed(1)}%</div>
+                  <div className="w-36 text-right">
+                    <EditableNumber value={expense.amount} onChange={(value) => updateExpense(expense.id, { amount: value })} className="text-sm" />
+                  </div>
+                  <button
+                    onClick={() => removeExpense(expense.id)}
+                    className="inline-flex items-center justify-center rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => addExpense({ id: `e${Date.now()}`, name: "Новая статья", amount: 0 })}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border py-2.5 text-xs text-muted-foreground transition-colors hover:border-[color:var(--gold)]/50 hover:text-[color:var(--gold)]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Добавить статью
+          </button>
+        </section>
+
+        <section className="space-y-3 lg:col-span-2">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Сценарии дохода</div>
+          {scenarios.map((scenario) => (
+            <div key={scenario.income} className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="font-display text-lg tabular">{formatRub(scenario.income)}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{scenario.coverage.toFixed(1)}x покрытие</div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Остаток</div>
+                  <div className="mt-0.5 text-sm tabular text-[color:var(--gold)]">{formatRub(scenario.surplus)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">В год</div>
+                  <div className="mt-0.5 text-sm tabular">{formatMillions(scenario.yearly)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Норма</div>
+                  <div className="mt-0.5 text-sm tabular">{scenario.savingsRate.toFixed(0)}%</div>
+                </div>
+              </div>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
+                <div className="h-full" style={{ width: `${Math.max(0, Math.min(100, scenario.savingsRate))}%`, background: "var(--gradient-gold)" }} />
+              </div>
+            </div>
+          ))}
+        </section>
       </div>
 
       <div className="mb-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
