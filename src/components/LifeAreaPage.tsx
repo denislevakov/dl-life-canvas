@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
@@ -44,6 +44,17 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   const [draggedAreaId, setDraggedAreaId] = useState<string | null>(null);
   const [draggedAction, setDraggedAction] = useState<{ areaId: string; actionId: string } | null>(null);
   const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "" });
+
+  useEffect(() => {
+    if (!draggedAction) return;
+    const stopDragging = () => setDraggedAction(null);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+    return () => {
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [draggedAction]);
 
   const areas = useMemo(() => (state.lifeAreas ?? []).filter((area) => area.kind === kind), [kind, state.lifeAreas]);
 
@@ -103,7 +114,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
     updateLifeArea(area.id, { actions: (area.actions ?? []).filter((action) => action.id !== actionId) });
   };
 
-  const reorderActions = (area: LifeArea, sourceId: string, targetId: string) => {
+  const reorderActions = (area: LifeArea, sourceId: string, targetId: string, options?: { keepDragging?: boolean }) => {
     if (sourceId === targetId) return;
     const actions = [...(area.actions ?? [])];
     const sourceIndex = actions.findIndex((action) => action.id === sourceId);
@@ -112,7 +123,12 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
     const [moved] = actions.splice(sourceIndex, 1);
     actions.splice(targetIndex, 0, moved);
     updateLifeArea(area.id, { actions });
-    setDraggedAction(null);
+    if (!options?.keepDragging) setDraggedAction(null);
+  };
+
+  const reorderActionOnEnter = (area: LifeArea, targetId: string) => {
+    if (!draggedAction || draggedAction.areaId !== area.id || draggedAction.actionId === targetId) return;
+    reorderActions(area, draggedAction.actionId, targetId, { keepDragging: true });
   };
 
   const reorderAreas = (sourceId: string, targetId: string) => {
@@ -213,13 +229,6 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
             return (
               <article
                 key={area.id}
-                draggable={!isEditing}
-                onDragStart={(event) => {
-                  if (isEditing) return;
-                  setDraggedAreaId(area.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("text/plain", area.id);
-                }}
                 onDragOver={(event) => {
                   if (draggedAreaId && draggedAreaId !== area.id && !isEditing) event.preventDefault();
                 }}
@@ -258,7 +267,17 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
                   <div className="flex items-center gap-2">
                     {!isEditing ? (
-                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground" title="Перетащить">
+                      <div
+                        draggable
+                        onDragStart={(event) => {
+                          setDraggedAreaId(area.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", area.id);
+                        }}
+                        onDragEnd={() => setDraggedAreaId(null)}
+                        className="inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
+                        title="Перетащить"
+                      >
                         <GripVertical className="h-4 w-4" />
                       </div>
                     ) : null}
@@ -316,28 +335,19 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                       {(area.actions ?? []).map((action) => (
                         <div
                           key={action.id}
-                          onDragOver={(event) => {
-                            if (draggedAction?.areaId === area.id && draggedAction.actionId !== action.id) event.preventDefault();
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            const sourceId = draggedAction?.areaId === area.id ? draggedAction.actionId : event.dataTransfer.getData("text/plain");
-                            if (sourceId) reorderActions(area, sourceId, action.id);
-                          }}
+                          onPointerEnter={() => reorderActionOnEnter(area, action.id)}
                           className={
                             "grid gap-2 rounded-lg border border-border bg-background/55 p-3 transition-opacity md:grid-cols-[32px_minmax(180px,1fr)_140px_120px_36px] md:items-center " +
                             (draggedAction?.actionId === action.id ? "opacity-50" : "")
                           }
                         >
                           <div
-                            draggable
-                            onDragStart={(event) => {
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
                               setDraggedAction({ areaId: area.id, actionId: action.id });
-                              event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData("text/plain", action.id);
                             }}
-                            onDragEnd={() => setDraggedAction(null)}
-                            className="inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
+                            className="inline-flex h-9 w-9 cursor-grab touch-none select-none items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
                             title="Перетащить действие"
                           >
                             <GripVertical className="h-4 w-4" />
@@ -413,18 +423,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                           return (
                             <div
                               key={action.id}
-                              onDragOver={(event) => {
-                                if (draggedAction?.areaId === area.id && draggedAction.actionId !== action.id) {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                }
-                              }}
-                              onDrop={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                const sourceId = draggedAction?.areaId === area.id ? draggedAction.actionId : event.dataTransfer.getData("text/plain");
-                                if (sourceId) reorderActions(area, sourceId, action.id);
-                              }}
+                              onPointerEnter={() => reorderActionOnEnter(area, action.id)}
                               className={
                                 "rounded-lg border border-border bg-background/55 transition-opacity " +
                                 (draggedAction?.actionId === action.id ? "opacity-50" : "")
@@ -432,16 +431,13 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                             >
                               <div className="flex items-stretch">
                                 <div
-                                  draggable
-                                  onDragStart={(event) => {
+                                  onPointerDown={(event) => {
+                                    event.preventDefault();
                                     event.stopPropagation();
                                     setDraggedAction({ areaId: area.id, actionId: action.id });
-                                    event.dataTransfer.effectAllowed = "move";
-                                    event.dataTransfer.setData("text/plain", action.id);
                                   }}
-                                  onDragEnd={() => setDraggedAction(null)}
                                   onClick={(event) => event.stopPropagation()}
-                                  className="inline-flex w-10 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)]/60 hover:text-foreground active:cursor-grabbing"
+                                  className="inline-flex w-10 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)]/60 hover:text-foreground active:cursor-grabbing"
                                   title="Перетащить действие"
                                 >
                                   <GripVertical className="h-4 w-4" />
