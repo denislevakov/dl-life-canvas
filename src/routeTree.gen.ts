@@ -10,8 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TargetsRouteImport } from './routes/targets'
+import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as LifeMapRouteImport } from './routes/life-map'
 import { Route as IncomeSourcesRouteImport } from './routes/income-sources'
+import { Route as HobbiesRouteImport } from './routes/hobbies'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as FreedomRouteImport } from './routes/freedom'
 import { Route as BudgetRouteImport } from './routes/budget'
@@ -23,6 +27,16 @@ const TargetsRoute = TargetsRouteImport.update({
   path: '/targets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SkillsRoute = SkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LifeMapRoute = LifeMapRouteImport.update({
   id: '/life-map',
   path: '/life-map',
@@ -31,6 +45,16 @@ const LifeMapRoute = LifeMapRouteImport.update({
 const IncomeSourcesRoute = IncomeSourcesRouteImport.update({
   id: '/income-sources',
   path: '/income-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HobbiesRoute = HobbiesRouteImport.update({
+  id: '/hobbies',
+  path: '/hobbies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GoalsRoute = GoalsRouteImport.update({
@@ -65,8 +89,12 @@ export interface FileRoutesByFullPath {
   '/budget': typeof BudgetRoute
   '/freedom': typeof FreedomRoute
   '/goals': typeof GoalsRoute
+  '/health': typeof HealthRoute
+  '/hobbies': typeof HobbiesRoute
   '/income-sources': typeof IncomeSourcesRoute
   '/life-map': typeof LifeMapRoute
+  '/projects': typeof ProjectsRoute
+  '/skills': typeof SkillsRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRoutesByTo {
@@ -75,8 +103,12 @@ export interface FileRoutesByTo {
   '/budget': typeof BudgetRoute
   '/freedom': typeof FreedomRoute
   '/goals': typeof GoalsRoute
+  '/health': typeof HealthRoute
+  '/hobbies': typeof HobbiesRoute
   '/income-sources': typeof IncomeSourcesRoute
   '/life-map': typeof LifeMapRoute
+  '/projects': typeof ProjectsRoute
+  '/skills': typeof SkillsRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRoutesById {
@@ -86,8 +118,12 @@ export interface FileRoutesById {
   '/budget': typeof BudgetRoute
   '/freedom': typeof FreedomRoute
   '/goals': typeof GoalsRoute
+  '/health': typeof HealthRoute
+  '/hobbies': typeof HobbiesRoute
   '/income-sources': typeof IncomeSourcesRoute
   '/life-map': typeof LifeMapRoute
+  '/projects': typeof ProjectsRoute
+  '/skills': typeof SkillsRoute
   '/targets': typeof TargetsRoute
 }
 export interface FileRouteTypes {
@@ -98,8 +134,12 @@ export interface FileRouteTypes {
     | '/budget'
     | '/freedom'
     | '/goals'
+    | '/health'
+    | '/hobbies'
     | '/income-sources'
     | '/life-map'
+    | '/projects'
+    | '/skills'
     | '/targets'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -108,8 +148,12 @@ export interface FileRouteTypes {
     | '/budget'
     | '/freedom'
     | '/goals'
+    | '/health'
+    | '/hobbies'
     | '/income-sources'
     | '/life-map'
+    | '/projects'
+    | '/skills'
     | '/targets'
   id:
     | '__root__'
@@ -118,8 +162,12 @@ export interface FileRouteTypes {
     | '/budget'
     | '/freedom'
     | '/goals'
+    | '/health'
+    | '/hobbies'
     | '/income-sources'
     | '/life-map'
+    | '/projects'
+    | '/skills'
     | '/targets'
   fileRoutesById: FileRoutesById
 }
@@ -129,8 +177,12 @@ export interface RootRouteChildren {
   BudgetRoute: typeof BudgetRoute
   FreedomRoute: typeof FreedomRoute
   GoalsRoute: typeof GoalsRoute
+  HealthRoute: typeof HealthRoute
+  HobbiesRoute: typeof HobbiesRoute
   IncomeSourcesRoute: typeof IncomeSourcesRoute
   LifeMapRoute: typeof LifeMapRoute
+  ProjectsRoute: typeof ProjectsRoute
+  SkillsRoute: typeof SkillsRoute
   TargetsRoute: typeof TargetsRoute
 }
 
@@ -141,6 +193,20 @@ declare module '@tanstack/react-router' {
       path: '/targets'
       fullPath: '/targets'
       preLoaderRoute: typeof TargetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skills': {
+      id: '/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof SkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/life-map': {
@@ -155,6 +221,20 @@ declare module '@tanstack/react-router' {
       path: '/income-sources'
       fullPath: '/income-sources'
       preLoaderRoute: typeof IncomeSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hobbies': {
+      id: '/hobbies'
+      path: '/hobbies'
+      fullPath: '/hobbies'
+      preLoaderRoute: typeof HobbiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/goals': {
@@ -201,8 +281,12 @@ const rootRouteChildren: RootRouteChildren = {
   BudgetRoute: BudgetRoute,
   FreedomRoute: FreedomRoute,
   GoalsRoute: GoalsRoute,
+  HealthRoute: HealthRoute,
+  HobbiesRoute: HobbiesRoute,
   IncomeSourcesRoute: IncomeSourcesRoute,
   LifeMapRoute: LifeMapRoute,
+  ProjectsRoute: ProjectsRoute,
+  SkillsRoute: SkillsRoute,
   TargetsRoute: TargetsRoute,
 }
 export const routeTree = rootRouteImport

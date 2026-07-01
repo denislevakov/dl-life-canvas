@@ -38,6 +38,27 @@ export interface LifeGoal {
   note: string;
 }
 
+export type LifeAreaKind = "project" | "skill" | "hobby" | "health";
+export type LifeAreaStatus = "active" | "done" | "backlog";
+
+export interface LifeAreaAction {
+  id: string;
+  title: string;
+  deadline: string;
+  status: "active" | "done";
+  note: string;
+}
+
+export interface LifeArea {
+  id: string;
+  kind: LifeAreaKind;
+  title: string;
+  description: string;
+  horizon: string;
+  status: LifeAreaStatus;
+  actions: LifeAreaAction[];
+}
+
 export interface Expense {
   id: string;
   name: string;
@@ -97,7 +118,7 @@ export interface LifeStage {
   focus: string;
 }
 
-export type ChangeScope = "asset" | "expense" | "target" | "life_goal" | "cash_account" | "transaction" | "transaction_category" | "income" | "state";
+export type ChangeScope = "asset" | "expense" | "target" | "life_goal" | "life_area" | "cash_account" | "transaction" | "transaction_category" | "income" | "state";
 export type ChangeAction = "add" | "update" | "remove" | "reset";
 
 export interface ChangeEntry {
@@ -116,6 +137,7 @@ interface CapitalState {
   assets: Asset[];
   targets: TargetAsset[];
   lifeGoals: LifeGoal[];
+  lifeAreas: LifeArea[];
   expenses: Expense[];
   cashAccounts: CashAccount[];
   transactionCategories: TransactionCategory[];
@@ -148,6 +170,7 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
 const DESC_VERSION = "v8-target-copy";
+const LIFE_AREAS_VERSION = "v2-test-overview";
 
 const defaultExpenses: Expense[] = [
   { id: "e1", name: "Аренда квартиры", amount: 80_000 },
@@ -225,6 +248,7 @@ const syncTransactionCategoriesWithExpenses = (state: CapitalState): CapitalStat
   };
 };
 const DESC_VERSION_KEY = "life-capital-desc-version";
+const LIFE_AREAS_VERSION_KEY = "life-capital-life-areas-version";
 
 const defaultState: CapitalState = {
   assets: [
@@ -279,6 +303,111 @@ const defaultState: CapitalState = {
       status: "backlog",
       budget: 0,
       note: "",
+    },
+  ],
+  lifeAreas: [
+    {
+      id: "la_project_1",
+      kind: "project",
+      title: "DL Life Canvas",
+      description: "Личный дашборд жизни: цели, капитал, расходы, привычки и следующие шаги.",
+      horizon: "июль 2026",
+      status: "active",
+      actions: [
+        { id: "laa_project_1_1", title: "Довести блок доходов и расходов", deadline: "2026-07-15", status: "active", note: "" },
+        { id: "laa_project_1_2", title: "Собрать обзор из проектов, целей и личных блоков", deadline: "2026-07-06", status: "active", note: "" },
+        { id: "laa_project_1_3", title: "Задеплоить стабильную версию на сервер", deadline: "2026-07-07", status: "active", note: "" },
+      ],
+    },
+    {
+      id: "la_project_2",
+      kind: "project",
+      title: "CULT AI production system",
+      description: "Система для упаковки AI-подходов, продакшн-логики и рабочих процессов CULT.",
+      horizon: "2026",
+      status: "backlog",
+      actions: [{ id: "laa_project_2_1", title: "Собрать список модулей", deadline: "", status: "active", note: "" }],
+    },
+    {
+      id: "la_project_3",
+      kind: "project",
+      title: "Новый сайт для второго домена",
+      description: "Подготовить структуру, репозиторий и будущий деплой на этот же VPS.",
+      horizon: "июль-август 2026",
+      status: "active",
+      actions: [
+        { id: "laa_project_3_1", title: "Определить домен и назначение сайта", deadline: "2026-07-20", status: "active", note: "" },
+        { id: "laa_project_3_2", title: "Создать репозиторий и базовый проект", deadline: "2026-07-25", status: "active", note: "" },
+      ],
+    },
+    {
+      id: "la_skill_1",
+      kind: "skill",
+      title: "AI / вайбкодинг",
+      description: "Быстро собирать рабочие продукты, проверять гипотезы и доводить их до деплоя.",
+      horizon: "2026",
+      status: "active",
+      actions: [{ id: "laa_skill_1_1", title: "Собрать личный стек шаблонов", deadline: "2026-08-31", status: "active", note: "" }],
+    },
+    {
+      id: "la_skill_2",
+      kind: "skill",
+      title: "Системное мышление",
+      description: "Лучше раскладывать задачи, решения, риски и следующий шаг.",
+      horizon: "постоянно",
+      status: "active",
+      actions: [{ id: "laa_skill_2_1", title: "Раз в неделю фиксировать выводы по проектам", deadline: "", status: "active", note: "" }],
+    },
+    {
+      id: "la_skill_3",
+      kind: "skill",
+      title: "DevOps база",
+      description: "Понимать домены, серверы, SSL, Docker, деплой и диагностику без паники.",
+      horizon: "2026",
+      status: "active",
+      actions: [{ id: "laa_skill_3_1", title: "Собрать личную памятку по деплою", deadline: "2026-07-31", status: "active", note: "" }],
+    },
+    {
+      id: "la_hobby_1",
+      kind: "hobby",
+      title: "Коллекционирование LEGO",
+      description: "Развивать коллекцию, хранение, учет наборов и планы покупок.",
+      horizon: "2026",
+      status: "active",
+      actions: [
+        { id: "laa_hobby_1_1", title: "Собрать список желаемых наборов", deadline: "", status: "active", note: "" },
+        { id: "laa_hobby_1_2", title: "Разобрать хранение и учет коллекции", deadline: "2026-08-15", status: "active", note: "" },
+      ],
+    },
+    {
+      id: "la_hobby_2",
+      kind: "hobby",
+      title: "Ретрогейминг",
+      description: "Собрать спокойный список игр, консолей и покупок без хаоса.",
+      horizon: "2026",
+      status: "backlog",
+      actions: [{ id: "laa_hobby_2_1", title: "Составить короткий wishlist", deadline: "", status: "active", note: "" }],
+    },
+    {
+      id: "la_health_1",
+      kind: "health",
+      title: "Базовая форма",
+      description: "Сон, движение, питание и регулярность без лишнего микроменеджмента.",
+      horizon: "2026",
+      status: "active",
+      actions: [
+        { id: "laa_health_1_1", title: "Определить простой недельный режим", deadline: "", status: "active", note: "" },
+        { id: "laa_health_1_2", title: "Вернуть регулярные тренировки", deadline: "2026-07-21", status: "active", note: "" },
+      ],
+    },
+    {
+      id: "la_health_2",
+      kind: "health",
+      title: "Чекапы",
+      description: "Плановые проверки здоровья, стоматология и базовые анализы.",
+      horizon: "осень 2026",
+      status: "backlog",
+      actions: [{ id: "laa_health_2_1", title: "Собрать список врачей и анализов", deadline: "", status: "active", note: "" }],
     },
   ],
   expenses: defaultExpenses,
@@ -381,6 +510,9 @@ interface Ctx {
   addLifeGoal: (goal: LifeGoal) => void;
   updateLifeGoal: (id: string, patch: Partial<LifeGoal>) => void;
   removeLifeGoal: (id: string) => void;
+  addLifeArea: (area: LifeArea) => void;
+  updateLifeArea: (id: string, patch: Partial<LifeArea>) => void;
+  removeLifeArea: (id: string) => void;
   addIncome: (s: IncomeSource) => void;
   updateIncome: (id: string, patch: Partial<IncomeSource>) => void;
   removeIncome: (id: string) => void;
@@ -460,6 +592,21 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           // would visibly wipe the default after hydration.
           if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
             merged.minIncome = defaultState.minIncome;
+          }
+          if (!Array.isArray(merged.lifeAreas)) {
+            merged.lifeAreas = defaultState.lifeAreas;
+          }
+          const storedLifeAreasVersion =
+            typeof window !== "undefined" ? window.localStorage.getItem(LIFE_AREAS_VERSION_KEY) : null;
+          if (storedLifeAreasVersion !== LIFE_AREAS_VERSION) {
+            const defaultIds = new Set(defaultState.lifeAreas.map((area) => area.id));
+            const customAreas = (merged.lifeAreas ?? []).filter((area) => !defaultIds.has(area.id));
+            merged.lifeAreas = [...defaultState.lifeAreas, ...customAreas];
+            try {
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(LIFE_AREAS_VERSION_KEY, LIFE_AREAS_VERSION);
+              }
+            } catch {}
           }
           merged = syncTransactionCategoriesWithExpenses(merged);
 
@@ -743,6 +890,32 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       );
     });
 
+  const addLifeArea = (area: LifeArea) =>
+    commit((s) =>
+      pushLog(
+        { ...s, lifeAreas: [...(s.lifeAreas ?? []), area] },
+        [{ scope: "life_area", action: "add", entityId: area.id, entityName: area.title }],
+      ),
+    );
+  const updateLifeArea = (id: string, patch: Partial<LifeArea>) =>
+    commit((s) => {
+      const areas = s.lifeAreas ?? [];
+      const cur = areas.find((area) => area.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, lifeAreas: areas.map((area) => (area.id === id ? { ...area, ...patch } : area)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "life_area", action: "update", entityId: id, entityName: cur.title, ...d })));
+    });
+  const removeLifeArea = (id: string) =>
+    commit((s) => {
+      const areas = s.lifeAreas ?? [];
+      const cur = areas.find((area) => area.id === id);
+      return pushLog(
+        { ...s, lifeAreas: areas.filter((area) => area.id !== id) },
+        [{ scope: "life_area", action: "remove", entityId: id, entityName: cur?.title }],
+      );
+    });
+
   const addIncome = (src: IncomeSource) =>
     commit((s) => pushLog({ ...s, incomeSources: [...s.incomeSources, src] }, [{ scope: "income", action: "add", entityId: src.id, entityName: src.name }]));
   const updateIncome = (id: string, patch: Partial<IncomeSource>) =>
@@ -822,6 +995,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         addLifeGoal,
         updateLifeGoal,
         removeLifeGoal,
+        addLifeArea,
+        updateLifeArea,
+        removeLifeArea,
         addIncome,
         updateIncome,
         removeIncome,
