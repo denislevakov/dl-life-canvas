@@ -138,8 +138,7 @@ function GoalsPage() {
     const targetIndex = allGoals.findIndex((goal) => goal.id === targetId);
     if (sourceIndex < 0 || targetIndex < 0 || allGoals[sourceIndex].status === "backlog" || allGoals[targetIndex].status === "backlog") return;
     const [moved] = allGoals.splice(sourceIndex, 1);
-    const nextTargetIndex = allGoals.findIndex((goal) => goal.id === targetId);
-    allGoals.splice(nextTargetIndex, 0, moved);
+    allGoals.splice(targetIndex, 0, moved);
     update({ lifeGoals: allGoals });
     setDraggedGoalId(null);
   };
@@ -245,13 +244,6 @@ function GoalsPage() {
             return (
               <div
                 key={goal.id}
-                draggable={!isEditing}
-                onDragStart={(event) => {
-                  if (isEditing) return;
-                  setDraggedGoalId(goal.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("text/plain", goal.id);
-                }}
                 onDragOver={(event) => {
                   if (draggedGoalId && draggedGoalId !== goal.id && !isEditing) event.preventDefault();
                 }}
@@ -263,7 +255,6 @@ function GoalsPage() {
                 onDragEnd={() => setDraggedGoalId(null)}
                 className={
                   "rounded-xl border border-border bg-card p-5 transition-opacity " +
-                  (!isEditing ? "cursor-grab active:cursor-grabbing " : "") +
                   (draggedGoalId === goal.id ? "opacity-50" : "")
                 }
               >
@@ -313,7 +304,17 @@ function GoalsPage() {
                       </div>
                     ) : null}
                     {!isEditing ? (
-                      <div className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground" title="Перетащить">
+                      <div
+                        draggable
+                        onDragStart={(event) => {
+                          setDraggedGoalId(goal.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", goal.id);
+                        }}
+                        onDragEnd={() => setDraggedGoalId(null)}
+                        className="inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
+                        title="Перетащить"
+                      >
                         <GripVertical className="h-4 w-4" />
                       </div>
                     ) : null}
