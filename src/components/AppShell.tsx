@@ -24,15 +24,15 @@ import {
 
 const nav = [
   { to: "/", label: "Обзор", icon: LayoutDashboard },
-  { to: "/goals", label: "Цели", icon: ListChecks },
   { to: "/projects", label: "Проекты", icon: FolderKanban },
-  { to: "/skills", label: "Скилы", icon: Brain },
-  { to: "/hobbies", label: "Хобби", icon: Gamepad2 },
-  { to: "/health", label: "Здоровье", icon: HeartPulse },
+  { to: "/goals", label: "Цели", icon: ListChecks },
+  { to: "/budget", label: "Доход и расходы", icon: Receipt },
   { to: "/assets", label: "Активы", icon: Wallet },
   { to: "/targets", label: "Целевые активы", icon: Target },
-  { to: "/budget", label: "Доход и расходы", icon: Receipt },
   { to: "/income-sources", label: "Источники дохода", icon: Briefcase },
+  { to: "/skills", label: "Скилы", icon: Brain },
+  { to: "/health", label: "Здоровье", icon: HeartPulse },
+  { to: "/hobbies", label: "Хобби", icon: Gamepad2 },
   { to: "/life-map", label: "Карта жизни", icon: Map },
   { to: "/freedom", label: "Свобода", icon: Sparkles },
 ] as const;
