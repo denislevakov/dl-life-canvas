@@ -43,10 +43,9 @@ export function AuthScreen() {
       <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-5 py-10">
         <div className="grid w-full gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
           <section>
-            <div className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--gold)]">Life Capital</div>
+            <div className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--gold)]">LIFE IS GOOD</div>
             <h1 className="mt-4 font-display text-5xl leading-tight text-foreground md:text-6xl">
-              LIFE IS GOOD
-              <span className="block">Дашборд жизни</span>
+              Дашборд жизни
             </h1>
           </section>
 
