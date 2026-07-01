@@ -3,9 +3,10 @@ import { CalendarDays, CheckCircle2, ChevronDown, GripVertical, Pencil, Plus, Tr
 
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useCapital, type LifeArea, type LifeAreaAction, type LifeAreaKind, type LifeAreaStatus } from "@/lib/capital-store";
+import { useCapital, type LifeArea, type LifeAreaAction, type LifeAreaKind, type LifeAreaSkillType, type LifeAreaStatus } from "@/lib/capital-store";
 
 type Filter = "all" | LifeAreaStatus;
+type SkillFilter = "all" | LifeAreaSkillType;
 
 interface LifeAreaPageProps {
   kind: LifeAreaKind;
@@ -29,6 +30,17 @@ const filterOptions: { value: Filter; label: string }[] = [
   { value: "done", label: "Выполнено" },
 ];
 
+const skillFilterOptions: { value: SkillFilter; label: string }[] = [
+  { value: "all", label: "Все скилы" },
+  { value: "hard", label: "Hard" },
+  { value: "soft", label: "Soft" },
+];
+
+const skillTypeOptions: { value: LifeAreaSkillType; label: string }[] = [
+  { value: "hard", label: "Hard skill" },
+  { value: "soft", label: "Soft skill" },
+];
+
 const formatDeadline = (value: string) => {
   if (!value) return "без срока";
   const date = new Date(`${value}T00:00:00`);
@@ -36,14 +48,22 @@ const formatDeadline = (value: string) => {
   return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
 };
 
+const inferSkillType = (area: LifeArea): LifeAreaSkillType => {
+  if (area.skillType) return area.skillType;
+  const text = `${area.title} ${area.description}`.toLowerCase();
+  if (/систем|переговор|коммуникац|лидер|мышлен|презентац|эмпати|управлен|стратег/.test(text)) return "soft";
+  return "hard";
+};
+
 export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, emptyTitle }: LifeAreaPageProps) {
   const { state, update, addLifeArea, updateLifeArea, removeLifeArea } = useCapital();
   const [filter, setFilter] = useState<Filter>("all");
+  const [skillFilter, setSkillFilter] = useState<SkillFilter>("all");
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
   const [draggedAreaId, setDraggedAreaId] = useState<string | null>(null);
   const [draggedAction, setDraggedAction] = useState<{ areaId: string; actionId: string } | null>(null);
-  const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "" });
+  const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "", skillType: "hard" as LifeAreaSkillType });
 
   useEffect(() => {
     if (!draggedAction) return;
@@ -67,8 +87,12 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   }, [areas]);
 
   const visibleAreas = useMemo(() => {
-    return areas.filter((area) => (filter === "all" ? true : area.status === filter));
-  }, [areas, filter]);
+    return areas.filter((area) => {
+      const matchesStatus = filter === "all" ? true : area.status === filter;
+      const matchesSkillType = kind !== "skill" || skillFilter === "all" ? true : inferSkillType(area) === skillFilter;
+      return matchesStatus && matchesSkillType;
+    });
+  }, [areas, filter, kind, skillFilter]);
 
   const addArea = () => {
     const areaTitle = draft.title.trim();
@@ -82,8 +106,11 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
       status: "active",
       actions: [],
     };
+    if (kind === "skill") {
+      area.skillType = skillFilter === "all" ? draft.skillType : skillFilter;
+    }
     addLifeArea(area);
-    setDraft({ title: "", horizon: String(new Date().getFullYear()), description: "" });
+    setDraft({ title: "", horizon: String(new Date().getFullYear()), description: "", skillType: draft.skillType });
     setEditingAreaId(area.id);
     setFilter("active");
   };
@@ -155,7 +182,14 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
       </div>
 
       <div className="mb-6 rounded-xl border border-border bg-card p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_150px_minmax(240px,1fr)_auto] lg:items-end">
+        <div
+          className={
+            "grid gap-3 lg:items-end " +
+            (kind === "skill"
+              ? "lg:grid-cols-[minmax(220px,1fr)_120px_130px_minmax(220px,1fr)_auto]"
+              : "lg:grid-cols-[minmax(240px,1fr)_150px_minmax(240px,1fr)_auto]")
+          }
+        >
           <label className="block">
             <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Название</span>
             <input
@@ -177,6 +211,23 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
               className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none"
             />
           </label>
+
+          {kind === "skill" ? (
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Тип</span>
+              <select
+                value={draft.skillType}
+                onChange={(event) => setDraft((value) => ({ ...value, skillType: event.target.value as LifeAreaSkillType }))}
+                className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none"
+              >
+                {skillTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <label className="block">
             <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Описание</span>
@@ -215,6 +266,25 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
           </button>
         ))}
       </div>
+
+      {kind === "skill" ? (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {skillFilterOptions.map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setSkillFilter(item.value)}
+              className={
+                "rounded-md border px-3 py-1.5 text-xs transition-colors " +
+                (skillFilter === item.value
+                  ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                  : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
+              }
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {visibleAreas.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
@@ -261,6 +331,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                         <CalendarDays className="h-3.5 w-3.5" />
                         {area.horizon || "без срока"}
                       </span>
+                      {kind === "skill" ? <span>{inferSkillType(area) === "hard" ? "Hard" : "Soft"}</span> : null}
                       <span>{openActions} в работе</span>
                     </div>
                   </div>
@@ -298,7 +369,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
                 {isEditing ? (
                   <>
-                    <div className="mt-4 grid gap-3 md:grid-cols-[minmax(140px,1fr)_160px]">
+                    <div className={"mt-4 grid gap-3 " + (kind === "skill" ? "md:grid-cols-[minmax(140px,1fr)_140px_160px]" : "md:grid-cols-[minmax(140px,1fr)_160px]")}>
                       <label className="block">
                         <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Срок</span>
                         <input
@@ -307,6 +378,23 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                           className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
                         />
                       </label>
+
+                      {kind === "skill" ? (
+                        <label className="block">
+                          <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Тип</span>
+                          <select
+                            value={inferSkillType(area)}
+                            onChange={(event) => updateLifeArea(area.id, { skillType: event.target.value as LifeAreaSkillType })}
+                            className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none"
+                          >
+                            {skillTypeOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
 
                       <label className="block">
                         <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Статус</span>

@@ -40,6 +40,7 @@ export interface LifeGoal {
 
 export type LifeAreaKind = "project" | "skill" | "hobby" | "health";
 export type LifeAreaStatus = "active" | "done" | "backlog";
+export type LifeAreaSkillType = "hard" | "soft";
 
 export interface LifeAreaAction {
   id: string;
@@ -52,6 +53,7 @@ export interface LifeAreaAction {
 export interface LifeArea {
   id: string;
   kind: LifeAreaKind;
+  skillType?: LifeAreaSkillType;
   title: string;
   description: string;
   horizon: string;
@@ -343,6 +345,7 @@ const defaultState: CapitalState = {
     {
       id: "la_skill_1",
       kind: "skill",
+      skillType: "hard",
       title: "AI / вайбкодинг",
       description: "Быстро собирать рабочие продукты, проверять гипотезы и доводить их до деплоя.",
       horizon: "2026",
@@ -352,6 +355,7 @@ const defaultState: CapitalState = {
     {
       id: "la_skill_2",
       kind: "skill",
+      skillType: "soft",
       title: "Системное мышление",
       description: "Лучше раскладывать задачи, решения, риски и следующий шаг.",
       horizon: "постоянно",
@@ -361,6 +365,7 @@ const defaultState: CapitalState = {
     {
       id: "la_skill_3",
       kind: "skill",
+      skillType: "hard",
       title: "DevOps база",
       description: "Понимать домены, серверы, SSL, Docker, деплой и диагностику без паники.",
       horizon: "2026",
