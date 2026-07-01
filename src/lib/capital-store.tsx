@@ -348,49 +348,6 @@ const defaultState: CapitalState = {
   changeLog: [],
 };
 
-const transactionBalanceDelta = (transaction: Pick<MoneyTransaction, "amount" | "type">) =>
-  transaction.type === "income" ? transaction.amount : -transaction.amount;
-
-const applyCardCashBalanceDelta = (accounts: CashAccount[], delta: number) => {
-  const accountIndex = accounts.findIndex((account) => account.kind === "card" || account.kind === "cash");
-  const nextAccounts =
-    accountIndex >= 0
-      ? accounts.map((account, index) =>
-          index === accountIndex ? { ...account, balance: account.balance + delta } : account,
-        )
-      : [
-          ...accounts,
-          {
-            id: `ca_${Date.now()}`,
-            name: "Карта / наличные",
-            kind: "card" as const,
-            balance: delta,
-          },
-        ];
-  return {
-    accounts: nextAccounts,
-    accountId: nextAccounts[accountIndex >= 0 ? accountIndex : nextAccounts.length - 1].id,
-  };
-};
-
-const applyUntrackedTransactionBalances = (state: CapitalState): CapitalState => {
-  const transactions = state.transactions ?? [];
-  const untracked = transactions.filter((transaction) => !transaction.accountId && transaction.categoryId !== REVIEW_CATEGORY_ID);
-  if (!untracked.length) return state;
-
-  const balanceDelta = untracked.reduce((sum, transaction) => sum + transactionBalanceDelta(transaction), 0);
-  const { accounts, accountId } = applyCardCashBalanceDelta(state.cashAccounts ?? [], balanceDelta);
-  const untrackedIds = new Set(untracked.map((transaction) => transaction.id));
-
-  return {
-    ...state,
-    cashAccounts: accounts,
-    transactions: transactions.map((transaction) =>
-      untrackedIds.has(transaction.id) ? { ...transaction, accountId } : transaction,
-    ),
-  };
-};
-
 const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
   if (typeof window === "undefined") return null;
   try {
@@ -503,7 +460,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
             merged.minIncome = defaultState.minIncome;
           }
-          merged = applyUntrackedTransactionBalances(syncTransactionCategoriesWithExpenses(merged));
+          merged = syncTransactionCategoriesWithExpenses(merged);
 
           // Patch target copy from current defaults when copy version changes,
           // so users get updated names/descriptions without losing numbers.
@@ -708,18 +665,12 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     });
 
   const addTransaction = (transaction: MoneyTransaction) =>
-    commit((s) => {
-      const shouldTrackBalance = transaction.categoryId !== REVIEW_CATEGORY_ID;
-      const balanceDelta = shouldTrackBalance ? transactionBalanceDelta(transaction) : 0;
-      const { accounts, accountId } = shouldTrackBalance
-        ? applyCardCashBalanceDelta(s.cashAccounts ?? [], balanceDelta)
-        : { accounts: s.cashAccounts, accountId: transaction.accountId };
-      const nextTransaction = shouldTrackBalance ? { ...transaction, accountId: transaction.accountId ?? accountId } : transaction;
-      return pushLog(
-        { ...s, cashAccounts: accounts, transactions: [nextTransaction, ...(s.transactions ?? [])] },
+    commit((s) =>
+      pushLog(
+        { ...s, transactions: [transaction, ...(s.transactions ?? [])] },
         [{ scope: "transaction", action: "add", entityId: transaction.id, entityName: transaction.description }],
-      );
-    });
+      ),
+    );
   const importTransactions = (transactions: MoneyTransaction[]) =>
     commit((s) => {
       if (!transactions.length) return s;
@@ -727,27 +678,10 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const existingTransactions = s.transactions ?? [];
       const existing = new Map(existingTransactions.map((transaction) => [keyFor(transaction), transaction]));
       const fresh = transactions.filter((transaction) => !existing.has(keyFor(transaction)));
-      const existingWithoutAccount = transactions
-        .map((transaction) => existing.get(keyFor(transaction)))
-        .filter((transaction): transaction is MoneyTransaction => Boolean(transaction && !transaction.accountId));
-      const balanceTransactions = [...fresh, ...existingWithoutAccount];
-      if (!balanceTransactions.length) return s;
-      const balanceDelta = balanceTransactions.reduce((sum, transaction) => sum + transactionBalanceDelta(transaction), 0);
-      const { accounts: nextAccounts, accountId } = applyCardCashBalanceDelta(s.cashAccounts ?? [], balanceDelta);
-      const freshWithAccount = fresh.map((transaction) => ({
-        ...transaction,
-        accountId: transaction.accountId ?? accountId,
-      }));
-      const existingWithoutAccountIds = new Set(existingWithoutAccount.map((transaction) => transaction.id));
-      const nextTransactions = existingTransactions.map((transaction) =>
-        existingWithoutAccountIds.has(transaction.id) ? { ...transaction, accountId } : transaction,
-      );
+      if (!fresh.length) return s;
       return pushLog(
-        { ...s, cashAccounts: nextAccounts, transactions: [...freshWithAccount, ...nextTransactions] },
-        [
-          { scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}, учтено в балансе ${balanceTransactions.length}` },
-          { scope: "cash_account", action: "update", entityName: "Карта / наличные", field: "balance", after: balanceDelta },
-        ],
+        { ...s, transactions: [...fresh, ...existingTransactions] },
+        [{ scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` }],
       );
     });
   const updateTransaction = (id: string, patch: Partial<MoneyTransaction>) =>
@@ -757,23 +691,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       if (!cur) return s;
       const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
       const nextTransaction = { ...cur, ...patch };
-      const currentBalanceDelta = transactionBalanceDelta(cur);
-      const nextBalanceDelta = transactionBalanceDelta(nextTransaction);
-      const balanceCorrection = cur.accountId && currentBalanceDelta !== nextBalanceDelta ? nextBalanceDelta - currentBalanceDelta : 0;
-      const shouldStartTracking = !cur.accountId && cur.categoryId === REVIEW_CATEGORY_ID && nextTransaction.categoryId !== REVIEW_CATEGORY_ID;
-      const tracked = shouldStartTracking ? applyCardCashBalanceDelta(s.cashAccounts ?? [], nextBalanceDelta) : null;
-      const nextAccounts = tracked
-        ? tracked.accounts
-        : balanceCorrection
-          ? (s.cashAccounts ?? []).map((account) =>
-              account.id === cur.accountId ? { ...account, balance: account.balance + balanceCorrection } : account,
-            )
-          : s.cashAccounts;
-      const nextTrackedTransaction = tracked ? { ...nextTransaction, accountId: tracked.accountId } : nextTransaction;
       const next = {
         ...s,
-        cashAccounts: nextAccounts,
-        transactions: transactions.map((transaction) => (transaction.id === id ? nextTrackedTransaction : transaction)),
+        transactions: transactions.map((transaction) => (transaction.id === id ? nextTransaction : transaction)),
       };
       return pushLog(next, diffs.map((d) => ({ scope: "transaction", action: "update", entityId: id, entityName: cur.description, ...d })));
     });
@@ -781,14 +701,8 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     commit((s) => {
       const transactions = s.transactions ?? [];
       const cur = transactions.find((transaction) => transaction.id === id);
-      const balanceDelta = cur ? transactionBalanceDelta(cur) : 0;
-      const nextAccounts = cur?.accountId
-        ? (s.cashAccounts ?? []).map((account) =>
-            account.id === cur.accountId ? { ...account, balance: account.balance - balanceDelta } : account,
-          )
-        : s.cashAccounts;
       return pushLog(
-        { ...s, cashAccounts: nextAccounts, transactions: transactions.filter((transaction) => transaction.id !== id) },
+        { ...s, transactions: transactions.filter((transaction) => transaction.id !== id) },
         [{ scope: "transaction", action: "remove", entityId: id, entityName: cur?.description }],
       );
     });
@@ -867,15 +781,18 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
   const cashAccounts = state.cashAccounts ?? [];
   const transactions = state.transactions ?? [];
-  const currentBalance = cashAccounts.reduce((s, account) => s + account.balance, 0);
-  const cardCashBalance = cashAccounts.filter((account) => account.kind === "card" || account.kind === "cash").reduce((s, account) => s + account.balance, 0);
-  const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
   const monthKey = new Date().toISOString().slice(0, 7);
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
   const monthExpenseTotal = monthTransactions.filter((transaction) => transaction.type === "expense").reduce((s, transaction) => s + transaction.amount, 0);
   const monthIncomeTotal = monthTransactions
     .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
     .reduce((s, transaction) => s + transaction.amount, 0);
+  const cardCashBaseBalance = cashAccounts
+    .filter((account) => account.kind === "card" || account.kind === "cash")
+    .reduce((s, account) => s + account.balance, 0);
+  const cardCashBalance = cardCashBaseBalance + monthIncomeTotal - monthExpenseTotal;
+  const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
+  const currentBalance = cardCashBalance + safetyBalance;
 
   return (
     <CapitalContext.Provider
