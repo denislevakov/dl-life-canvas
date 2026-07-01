@@ -47,7 +47,7 @@ export function EditableNumber({
       }}
       className={"tabular text-left hover:text-[color:var(--gold)] transition-colors " + className}
     >
-      {new Intl.NumberFormat("ru-RU").format(value)} {suffix}
+      {new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value)} {suffix}
     </button>
   );
 }
