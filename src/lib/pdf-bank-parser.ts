@@ -25,15 +25,27 @@ const normalizeDate = (value: string) => {
 
 const categoryForText = (text: string, categories: TransactionCategory[]) => {
   const lower = text.toLowerCase();
-  const find = (id: string) => categories.find((category) => category.id === id)?.id;
-  if (/пят[её]р|перекрест|вкусвилл|магнит|самокат|лавк|restaurant|cafe|кофе|еда|продукт/.test(lower)) return find("cat_food");
-  if (/такси|метро|transport|яндекс go|авто|парков/.test(lower)) return find("cat_transport");
-  if (/аптек|клиник|health|мед|doctor/.test(lower)) return find("cat_health");
-  if (/ozon|wildberries|маркет|магазин|store|purchase/.test(lower)) return find("cat_home");
-  if (/подпис|spotify|apple|google|yandex|netflix|kinopoisk/.test(lower)) return find("cat_subscriptions");
-  if (/авиа|hotel|отел|travel|booking|airbnb|поезд/.test(lower)) return find("cat_travel");
-  if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return find("cat_income");
-  return find("cat_other") ?? categories[0]?.id ?? "";
+  const findById = (id: string) => categories.find((category) => category.id === id)?.id;
+  const findByName = (pattern: RegExp) => categories.find((category) => pattern.test(category.name.toLowerCase()))?.id;
+  const find = (id: string, pattern: RegExp) => findById(id) ?? findByName(pattern);
+
+  if (/аренд|rent/.test(lower)) return find("cat_expense_e1", /аренд/);
+  if (/квартплат|жкх|коммунал|utility|utilities/.test(lower)) return find("cat_expense_e2", /квартплат|жкх|коммунал/);
+  if (/пят[её]р|перекрест|вкусвилл|магнит|самокат|лавк|restaurant|cafe|кофе|еда|продукт|delivery|доставка/.test(lower)) {
+    return find("cat_expense_e3", /питание|ресторан|еда|продукт/);
+  }
+  if (/мобильн|телефон|tele2|mts|мтс|beeline|билайн|megafon|мегафон/.test(lower)) return find("cat_expense_e4", /мобильн|телефон/);
+  if (/интернет|internet|провайдер|rostelecom|ростелеком/.test(lower)) return find("cat_expense_e5", /интернет/);
+  if (/стриж|барбер|barber|парикмах/.test(lower)) return find("cat_expense_e6", /стриж|барбер|парикмах/);
+  if (/комисс|карта|подпис|spotify|apple|google|yandex|netflix|kinopoisk|банк|service fee/.test(lower)) {
+    return find("cat_expense_e7", /комисс|карт|подпис/);
+  }
+  if (/мама|маме|mother/.test(lower)) return find("cat_expense_e8", /мама/);
+  if (/склад|storage|хранени/.test(lower)) return find("cat_expense_e9", /склад|хранени/);
+  if (/фитнес|fitness|gym|спортзал|зал/.test(lower)) return find("cat_expense_e10", /фитнес|спортзал/);
+  if (/клининг|cleaning|уборк/.test(lower)) return find("cat_expense_e11", /клининг|уборк/);
+  if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return findById("cat_income") ?? findByName(/доход/);
+  return findById("cat_other") ?? findByName(/другое/) ?? categories[0]?.id ?? "";
 };
 
 const isIncomeLine = (line: string, amountText: string) => {

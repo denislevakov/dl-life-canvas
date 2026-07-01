@@ -55,7 +55,7 @@ function BudgetPage() {
     description: "",
     amount: 0,
     type: "expense" as MoneyTransactionType,
-    categoryId: categories.find((category) => category.id === "cat_other")?.id ?? categories[0]?.id ?? "",
+    categoryId: categories[0]?.id ?? categories.find((category) => category.id === "cat_other")?.id ?? "",
   });
 
   const expenseByCategory = useMemo(() => {

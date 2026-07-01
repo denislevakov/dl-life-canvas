@@ -148,6 +148,82 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
 const DESC_VERSION = "v8-target-copy";
+
+const defaultExpenses: Expense[] = [
+  { id: "e1", name: "Аренда квартиры", amount: 80_000 },
+  { id: "e2", name: "Квартплата СПб", amount: 20_000 },
+  { id: "e3", name: "Питание дома и рестораны", amount: 80_000 },
+  { id: "e4", name: "Мобильный телефон", amount: 1_000 },
+  { id: "e5", name: "Интернет", amount: 500 },
+  { id: "e6", name: "Стрижка", amount: 4_000 },
+  { id: "e7", name: "Комиссии, карты, подписки", amount: 1_500 },
+  { id: "e8", name: "Мама", amount: 10_000 },
+  { id: "e9", name: "Склад", amount: 4_700 },
+  { id: "e10", name: "Фитнес", amount: 2_300 },
+  { id: "e11", name: "Клининг", amount: 7_000 },
+];
+
+const transactionCategoryIdForExpense = (expenseId: string) => `cat_expense_${expenseId}`;
+
+const defaultTransactionCategories: TransactionCategory[] = [
+  ...defaultExpenses.map((expense) => ({ id: transactionCategoryIdForExpense(expense.id), name: expense.name })),
+  { id: "cat_income", name: "Доход" },
+  { id: "cat_other", name: "Другое" },
+];
+
+const legacyTransactionCategoryIds = [
+  "cat_food",
+  "cat_home",
+  "cat_transport",
+  "cat_health",
+  "cat_family",
+  "cat_subscriptions",
+  "cat_travel",
+  "cat_income",
+  "cat_other",
+];
+
+const legacyTransactionCategoryMap: Record<string, string> = {
+  cat_food: transactionCategoryIdForExpense("e3"),
+  cat_home: "cat_other",
+  cat_transport: "cat_other",
+  cat_health: "cat_other",
+  cat_family: transactionCategoryIdForExpense("e8"),
+  cat_subscriptions: transactionCategoryIdForExpense("e7"),
+  cat_travel: "cat_other",
+  cat_income: "cat_income",
+  cat_other: "cat_other",
+};
+
+const normalizeCategoryName = (name: string) => name.trim().toLowerCase();
+
+const isLegacyDefaultTransactionCategories = (categories: TransactionCategory[]) =>
+  categories.length === legacyTransactionCategoryIds.length &&
+  legacyTransactionCategoryIds.every((id) => categories.some((category) => category.id === id));
+
+const withDefaultTransactionCategories = (state: CapitalState): CapitalState => {
+  const categories = state.transactionCategories ?? [];
+  if (!categories.length || isLegacyDefaultTransactionCategories(categories)) {
+    return {
+      ...state,
+      transactionCategories: defaultTransactionCategories,
+      transactions: (state.transactions ?? []).map((transaction) => ({
+        ...transaction,
+        categoryId: legacyTransactionCategoryMap[transaction.categoryId] ?? transaction.categoryId,
+      })),
+    };
+  }
+
+  const seen = new Set<string>();
+  const mergedCategories = [...defaultTransactionCategories, ...categories].filter((category) => {
+    const key = `${category.id}:${normalizeCategoryName(category.name)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { ...state, transactionCategories: mergedCategories };
+};
 const DESC_VERSION_KEY = "life-capital-desc-version";
 
 const defaultState: CapitalState = {
@@ -205,35 +281,13 @@ const defaultState: CapitalState = {
       note: "",
     },
   ],
-  expenses: [
-    { id: "e1", name: "Аренда квартиры", amount: 80_000 },
-    { id: "e2", name: "Квартплата СПб", amount: 20_000 },
-    { id: "e3", name: "Питание дома и рестораны", amount: 80_000 },
-    { id: "e4", name: "Мобильный телефон", amount: 1_000 },
-    { id: "e5", name: "Интернет", amount: 500 },
-    { id: "e6", name: "Стрижка", amount: 4_000 },
-    { id: "e7", name: "Комиссии, карты, подписки", amount: 1_500 },
-    { id: "e8", name: "Мама", amount: 10_000 },
-    { id: "e9", name: "Склад", amount: 4_700 },
-    { id: "e10", name: "Фитнес", amount: 2_300 },
-    { id: "e11", name: "Клининг", amount: 7_000 },
-  ],
+  expenses: defaultExpenses,
   cashAccounts: [
     { id: "ca1", name: "Карта", kind: "card", balance: 0 },
     { id: "ca2", name: "Наличные", kind: "cash", balance: 0 },
     { id: "ca3", name: "Подушка безопасности", kind: "safety", balance: 0 },
   ],
-  transactionCategories: [
-    { id: "cat_food", name: "Еда" },
-    { id: "cat_home", name: "Дом" },
-    { id: "cat_transport", name: "Транспорт" },
-    { id: "cat_health", name: "Здоровье" },
-    { id: "cat_family", name: "Семья" },
-    { id: "cat_subscriptions", name: "Подписки" },
-    { id: "cat_travel", name: "Путешествия" },
-    { id: "cat_income", name: "Доход" },
-    { id: "cat_other", name: "Другое" },
-  ],
+  transactionCategories: defaultTransactionCategories,
   transactions: [],
   incomeSources: [],
   stages: [
@@ -400,12 +454,13 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           const isPristine = JSON.stringify(cur) === JSON.stringify(defaultState);
           if (!isPristine) return cur;
 
-          const merged = { ...defaultState, ...saved } as CapitalState;
+          let merged = { ...defaultState, ...saved } as CapitalState;
           // Guard numeric scalars: stale saves may store null/0/undefined which
           // would visibly wipe the default after hydration.
           if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
             merged.minIncome = defaultState.minIncome;
           }
+          merged = withDefaultTransactionCategories(merged);
 
           // Patch target copy from current defaults when copy version changes,
           // so users get updated names/descriptions without losing numbers.
