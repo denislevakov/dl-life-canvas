@@ -726,15 +726,34 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const cur = transactions.find((transaction) => transaction.id === id);
       if (!cur) return s;
       const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
-      const next = { ...s, transactions: transactions.map((transaction) => (transaction.id === id ? { ...transaction, ...patch } : transaction)) };
+      const nextTransaction = { ...cur, ...patch };
+      const currentBalanceDelta = cur.type === "income" ? cur.amount : -cur.amount;
+      const nextBalanceDelta = nextTransaction.type === "income" ? nextTransaction.amount : -nextTransaction.amount;
+      const balanceCorrection = cur.accountId && currentBalanceDelta !== nextBalanceDelta ? nextBalanceDelta - currentBalanceDelta : 0;
+      const nextAccounts = balanceCorrection
+        ? (s.cashAccounts ?? []).map((account) =>
+            account.id === cur.accountId ? { ...account, balance: account.balance + balanceCorrection } : account,
+          )
+        : s.cashAccounts;
+      const next = {
+        ...s,
+        cashAccounts: nextAccounts,
+        transactions: transactions.map((transaction) => (transaction.id === id ? nextTransaction : transaction)),
+      };
       return pushLog(next, diffs.map((d) => ({ scope: "transaction", action: "update", entityId: id, entityName: cur.description, ...d })));
     });
   const removeTransaction = (id: string) =>
     commit((s) => {
       const transactions = s.transactions ?? [];
       const cur = transactions.find((transaction) => transaction.id === id);
+      const balanceDelta = cur ? (cur.type === "income" ? cur.amount : -cur.amount) : 0;
+      const nextAccounts = cur?.accountId
+        ? (s.cashAccounts ?? []).map((account) =>
+            account.id === cur.accountId ? { ...account, balance: account.balance - balanceDelta } : account,
+          )
+        : s.cashAccounts;
       return pushLog(
-        { ...s, transactions: transactions.filter((transaction) => transaction.id !== id) },
+        { ...s, cashAccounts: nextAccounts, transactions: transactions.filter((transaction) => transaction.id !== id) },
         [{ scope: "transaction", action: "remove", entityId: id, entityName: cur?.description }],
       );
     });

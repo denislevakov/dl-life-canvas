@@ -126,7 +126,7 @@ const parseSberStatementLines = (lines: string[], categories: TransactionCategor
       description,
       amount,
       type,
-      categoryId: type === "income" ? (categoryForText("income", categories) || categoryForText(combinedText, categories)) : categoryForText(combinedText, categories),
+      categoryId: type === "income" ? REVIEW_CATEGORY_ID : categoryForText(combinedText, categories),
       source: "pdf",
     });
   });
@@ -174,7 +174,7 @@ const parseTransactionsFromText = (text: string, categories: TransactionCategory
       description,
       amount,
       type,
-      categoryId: type === "income" ? (categoryForText("income", categories) || categoryForText(line, categories)) : categoryForText(line, categories),
+      categoryId: type === "income" ? REVIEW_CATEGORY_ID : categoryForText(line, categories),
       source: "pdf",
     });
   });

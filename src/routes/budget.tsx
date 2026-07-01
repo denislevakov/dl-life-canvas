@@ -43,6 +43,7 @@ function BudgetPage() {
     addTransaction,
     importTransactions,
     updateTransaction,
+    removeTransaction,
   } = useCapital();
 
   const categories = state.transactionCategories ?? [];
@@ -397,7 +398,7 @@ function BudgetPage() {
             <div className="mt-1 font-display text-xl">Расходы по статьям</div>
           </div>
           <div className="text-right text-xs text-muted-foreground">
-            Доходы: <span className="text-foreground">{formatRub(totals.monthIncomeTotal)}</span>
+            Расходы: <span className="text-foreground">{formatRub(totals.monthExpenseTotal)}</span>
           </div>
         </div>
 
@@ -412,7 +413,7 @@ function BudgetPage() {
             </div>
             <div className="grid gap-2">
               {reviewTransactions.slice(0, 6).map((transaction) => (
-                <div key={transaction.id} className="grid gap-2 rounded-md border border-border bg-card/70 p-3 md:grid-cols-[1fr_130px_180px] md:items-center">
+                <div key={transaction.id} className="grid gap-2 rounded-md border border-border bg-card/70 p-3 md:grid-cols-[1fr_130px_180px_36px] md:items-center">
                   <div className="min-w-0">
                     <div className="truncate text-sm text-foreground">{transaction.description}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
@@ -440,6 +441,14 @@ function BudgetPage() {
                       <option key={category.id} value={category.id}>{category.name}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => removeTransaction(transaction.id)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Удалить операцию"
+                    title="Удалить операцию"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ))}
             </div>
