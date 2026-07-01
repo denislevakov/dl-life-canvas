@@ -4,14 +4,14 @@ import { FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
-import { useCapital, type CashAccountKind, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
+import { useCapital, type CashAccountKind, type MoneyTransactionType } from "@/lib/capital-store";
 import { formatRub } from "@/lib/format";
 
 export const Route = createFileRoute("/budget")({
   head: () => ({
     meta: [
       { title: "Доход и расходы · LIFE IS GOOD" },
-      { name: "description", content: "Баланс, выписки, транзакции и категории расходов." },
+      { name: "description", content: "Баланс, выписки и статьи расходов." },
     ],
   }),
   component: BudgetPage,
@@ -36,8 +36,6 @@ function BudgetPage() {
     removeCashAccount,
     addTransaction,
     importTransactions,
-    updateTransaction,
-    removeTransaction,
     addTransactionCategory,
     updateTransactionCategory,
     removeTransactionCategory,
@@ -56,12 +54,6 @@ function BudgetPage() {
     type: "expense" as MoneyTransactionType,
     categoryId: categories.find((category) => category.id === "cat_other")?.id ?? categories[0]?.id ?? "",
   });
-
-  const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
-  const sortedTransactions = useMemo(
-    () => transactions.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 120),
-    [transactions],
-  );
 
   const expenseByCategory = useMemo(() => {
     const monthKey = new Date().toISOString().slice(0, 7);
@@ -123,7 +115,7 @@ function BudgetPage() {
         return;
       }
       importTransactions(result.transactions);
-      setImportMessage(`Импортировано операций: ${result.transactions.length}. Проверь категории в списке ниже.`);
+      setImportMessage(`Импортировано операций: ${result.transactions.length}. Распределение обновилось в статьях расходов.`);
     } catch {
       setImportMessage("Не удалось прочитать PDF. Попробуй другую выписку или добавь операции вручную.");
     }
@@ -134,7 +126,7 @@ function BudgetPage() {
       <PageHeader
         eyebrow="Баланс и поток"
         title="Доходы / Расходы"
-        description="Фактический баланс по счетам, операции из выписки, ручные расходы и распределение по категориям."
+        description="Фактический баланс по счетам, расходы из выписки, ручные корректировки и распределение по статьям."
       />
 
       <div className="mb-8 grid gap-4 md:grid-cols-4">
@@ -245,14 +237,14 @@ function BudgetPage() {
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Операции</div>
-              <div className="mt-1 font-display text-xl">Список транзакций</div>
+              <div className="mt-1 font-display text-xl">Ручная корректировка</div>
             </div>
             <div className="text-right text-xs text-muted-foreground">
               Доходы за месяц: <span className="text-foreground">{formatRub(totals.monthIncomeTotal)}</span>
             </div>
           </div>
 
-          <div className="mb-4 grid gap-3 lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto] lg:items-end">
+          <div className="grid gap-3 lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto] lg:items-end">
             <label>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Дата</span>
               <input
@@ -313,56 +305,6 @@ function BudgetPage() {
               Добавить
             </button>
           </div>
-
-          {sortedTransactions.length ? (
-            <div className="divide-y divide-border">
-              {sortedTransactions.map((transaction) => (
-                <div key={transaction.id} className="grid gap-3 py-3 lg:grid-cols-[105px_minmax(180px,1fr)_105px_150px_130px_auto] lg:items-center">
-                  <input
-                    type="date"
-                    value={transaction.date}
-                    onChange={(event) => updateTransaction(transaction.id, { date: event.target.value })}
-                    className="rounded-md border border-transparent bg-transparent px-2 py-1.5 text-xs text-muted-foreground outline-none focus:border-border focus:bg-background"
-                  />
-                  <input
-                    value={transaction.description}
-                    onChange={(event) => updateTransaction(transaction.id, { description: event.target.value })}
-                    className="min-w-0 bg-transparent text-sm text-foreground outline-none"
-                  />
-                  <select
-                    value={transaction.type}
-                    onChange={(event) => updateTransaction(transaction.id, { type: event.target.value as MoneyTransactionType })}
-                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
-                  >
-                    <option value="expense">Расход</option>
-                    <option value="income">Доход</option>
-                  </select>
-                  <select
-                    value={transaction.categoryId}
-                    onChange={(event) => updateTransaction(transaction.id, { categoryId: event.target.value })}
-                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
-                  >
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                  </select>
-                  <div className={transaction.type === "expense" ? "text-sm tabular text-destructive" : "text-sm tabular text-[color:oklch(0.7_0.1_160)]"}>
-                    {transaction.type === "expense" ? "-" : "+"}{formatRub(transaction.amount)}
-                  </div>
-                  <button
-                    onClick={() => removeTransaction(transaction.id)}
-                    className="inline-flex items-center justify-center rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
-              Операций пока нет. Загрузи PDF-выписку или добавь первый расход вручную.
-            </div>
-          )}
         </section>
 
         <section className="space-y-6">
@@ -399,7 +341,7 @@ function BudgetPage() {
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="mb-4">
               <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Справочник</div>
-              <div className="mt-1 font-display text-xl">Категории операций</div>
+              <div className="mt-1 font-display text-xl">Статьи расходов</div>
             </div>
 
             <div className="space-y-2">
@@ -424,7 +366,7 @@ function BudgetPage() {
               <input
                 value={newCategoryName}
                 onChange={(event) => setNewCategoryName(event.target.value)}
-                placeholder="Новая категория"
+                placeholder="Новая статья"
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
               <button
