@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
-import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
+import { PageContainer, PageHeader } from "@/components/MetricCard";
 import { useCapital, type CashAccountKind, type MoneyTransactionType } from "@/lib/capital-store";
 import { formatMillions, formatRub } from "@/lib/format";
 
@@ -24,8 +24,6 @@ const accountKindLabels: Record<CashAccountKind, string> = {
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-
-const monthLabel = () => new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date());
 
 function BudgetPage() {
   const {
@@ -81,6 +79,36 @@ function BudgetPage() {
       savingsRate: income ? (surplus / income) * 100 : 0,
     };
   });
+  const cashAccounts = state.cashAccounts ?? [];
+  const cardCashAccounts = cashAccounts.filter((account) => account.kind === "card" || account.kind === "cash");
+  const safetyAccounts = cashAccounts.filter((account) => account.kind === "safety");
+  const primaryCardCashAccount = cardCashAccounts[0];
+  const primarySafetyAccount = safetyAccounts[0];
+  const extraAccounts = cashAccounts.filter(
+    (account) => account.id !== primaryCardCashAccount?.id && account.id !== primarySafetyAccount?.id,
+  );
+
+  const setCardCashBalance = (nextBalance: number) => {
+    const otherBalance = cardCashAccounts
+      .filter((account) => account.id !== primaryCardCashAccount?.id)
+      .reduce((sum, account) => sum + account.balance, 0);
+    if (primaryCardCashAccount) {
+      updateCashAccount(primaryCardCashAccount.id, { name: "Карта / наличные", kind: "card", balance: nextBalance - otherBalance });
+      return;
+    }
+    addCashAccount({ id: `ca_${Date.now()}`, name: "Карта / наличные", kind: "card", balance: nextBalance });
+  };
+
+  const setSafetyBalance = (nextBalance: number) => {
+    const otherBalance = safetyAccounts
+      .filter((account) => account.id !== primarySafetyAccount?.id)
+      .reduce((sum, account) => sum + account.balance, 0);
+    if (primarySafetyAccount) {
+      updateCashAccount(primarySafetyAccount.id, { name: "Подушка безопасности", kind: "safety", balance: nextBalance - otherBalance });
+      return;
+    }
+    addCashAccount({ id: `ca_${Date.now()}`, name: "Подушка безопасности", kind: "safety", balance: nextBalance });
+  };
 
   const addManualTransaction = () => {
     if (!draft.description.trim() || !draft.amount || !draft.categoryId) return;
@@ -143,12 +171,116 @@ function BudgetPage() {
         description="Фактический баланс по счетам, расходы из выписки, ручные корректировки и распределение по статьям."
       />
 
-      <div className="mb-8 grid gap-4 md:grid-cols-4">
-        <MetricCard label="Текущий баланс" value={formatRub(totals.currentBalance)} sublabel="сумма счетов" accent="gold" />
-        <MetricCard label="Карта / наличные" value={formatRub(totals.cardCashBalance)} sublabel="доступные деньги" />
-        <MetricCard label="Подушка" value={formatRub(totals.safetyBalance)} sublabel="резерв" accent="green" />
-        <MetricCard label="Расходы за месяц" value={formatRub(totals.monthExpenseTotal)} sublabel={monthLabel()} />
+      <div className="mb-4 grid gap-4 md:grid-cols-4">
+        <section className="rounded-xl border border-border bg-card p-6">
+          <div className="text-[10px] uppercase tracking-[0.26em] text-muted-foreground">Текущий баланс</div>
+          <div className="mt-6 font-display text-5xl tabular text-[color:var(--gold)]">{formatRub(totals.currentBalance)}</div>
+          <div className="mt-5 text-sm text-muted-foreground">сумма счетов</div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <div className="text-[10px] uppercase tracking-[0.26em] text-muted-foreground">Карта / наличные</div>
+          <div className="mt-6 font-display text-5xl tabular text-foreground">
+            <EditableNumber value={totals.cardCashBalance} onChange={setCardCashBalance} className="font-display text-5xl" />
+          </div>
+          <div className="mt-5 text-sm text-muted-foreground">доступные деньги</div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <div className="text-[10px] uppercase tracking-[0.26em] text-muted-foreground">Подушка безопасности</div>
+          <div className="mt-6 font-display text-5xl tabular text-[color:oklch(0.7_0.1_160)]">
+            <EditableNumber value={totals.safetyBalance} onChange={setSafetyBalance} className="font-display text-5xl text-[color:oklch(0.7_0.1_160)]" />
+          </div>
+          <div className="mt-5 text-sm text-muted-foreground">резерв</div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.26em] text-muted-foreground">
+            <Upload className="h-3.5 w-3.5 text-[color:var(--gold)]" /> Выписка PDF
+          </div>
+          <label className="mt-6 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-[color:var(--surface-elevated)]/40 px-4 py-4 text-sm text-foreground transition-colors hover:border-[color:var(--gold)]/50">
+            <FileText className="h-4 w-4 text-[color:var(--gold)]" />
+            Загрузить выписку
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(event) => void handlePdfUpload(event.target.files?.[0])}
+            />
+          </label>
+          <div className="mt-4 text-xs leading-5 text-muted-foreground">файл читается локально</div>
+        </section>
       </div>
+
+      {importMessage ? (
+        <div className="mb-4 rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{importMessage}</div>
+      ) : null}
+
+      <details className="mb-8 rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">
+          Дополнительные счета
+        </summary>
+
+        {extraAccounts.length ? (
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {extraAccounts.map((account) => (
+              <div key={account.id} className="rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <input
+                    value={account.name}
+                    onChange={(event) => updateCashAccount(account.id, { name: event.target.value })}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
+                  />
+                  <button
+                    onClick={() => removeCashAccount(account.id)}
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-[1fr_1.2fr] gap-2">
+                  <select
+                    value={account.kind}
+                    onChange={(event) => updateCashAccount(account.id, { kind: event.target.value as CashAccountKind })}
+                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
+                  >
+                    {Object.entries(accountKindLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(160px,1fr)_130px_auto]">
+          <input
+            value={newAccountName}
+            onChange={(event) => setNewAccountName(event.target.value)}
+            placeholder="Новый счет"
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <select
+            value={newAccountKind}
+            onChange={(event) => setNewAccountKind(event.target.value as CashAccountKind)}
+            className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+          >
+            {Object.entries(accountKindLabels).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <button
+            onClick={addAccount}
+            disabled={!newAccountName.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить
+          </button>
+        </div>
+      </details>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-5">
         <section className="rounded-xl border border-border bg-card p-6 lg:col-span-3">
@@ -224,112 +356,6 @@ function BudgetPage() {
               </div>
             </div>
           ))}
-        </section>
-      </div>
-
-      <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Баланс</div>
-              <div className="mt-1 font-display text-xl">{formatRub(totals.currentBalance)}</div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-right text-xs md:grid-cols-3">
-              <div>
-                <div className="text-muted-foreground">Карта / наличные</div>
-                <div className="mt-1 tabular text-foreground">{formatRub(totals.cardCashBalance)}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Подушка</div>
-                <div className="mt-1 tabular text-foreground">{formatRub(totals.safetyBalance)}</div>
-              </div>
-              <div className="hidden md:block">
-                <div className="text-muted-foreground">Расходы</div>
-                <div className="mt-1 tabular text-foreground">{formatRub(totals.monthExpenseTotal)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-3">
-            {(state.cashAccounts ?? []).map((account) => (
-              <div key={account.id} className="rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <input
-                    value={account.name}
-                    onChange={(event) => updateCashAccount(account.id, { name: event.target.value })}
-                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
-                  />
-                  <button
-                    onClick={() => removeCashAccount(account.id)}
-                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-[1fr_1.2fr] gap-2">
-                  <select
-                    value={account.kind}
-                    onChange={(event) => updateCashAccount(account.id, { kind: event.target.value as CashAccountKind })}
-                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
-                  >
-                    {Object.entries(accountKindLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <details className="mt-3 rounded-lg border border-dashed border-border px-3 py-2">
-            <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">Добавить счет</summary>
-            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(160px,1fr)_130px_auto]">
-              <input
-                value={newAccountName}
-                onChange={(event) => setNewAccountName(event.target.value)}
-                placeholder="Новый счет"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-              <select
-                value={newAccountKind}
-                onChange={(event) => setNewAccountKind(event.target.value as CashAccountKind)}
-                className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
-              >
-                {Object.entries(accountKindLabels).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-              <button
-                onClick={addAccount}
-                disabled={!newAccountName.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Plus className="h-4 w-4" />
-                Добавить
-              </button>
-            </div>
-          </details>
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
-            <Upload className="h-3.5 w-3.5" /> Выписка PDF
-          </div>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-[color:var(--surface-elevated)]/40 px-4 py-3 text-sm text-foreground transition-colors hover:border-[color:var(--gold)]/50">
-            <FileText className="h-4 w-4 text-[color:var(--gold)]" />
-            Загрузить выписку
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              className="hidden"
-              onChange={(event) => void handlePdfUpload(event.target.files?.[0])}
-            />
-          </label>
-          <p className="mt-3 text-xs leading-5 text-muted-foreground">Файл читается локально и не отправляется на сервер.</p>
-          {importMessage ? (
-            <div className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">{importMessage}</div>
-          ) : null}
         </section>
       </div>
 
