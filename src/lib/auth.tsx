@@ -22,6 +22,12 @@ const authUnavailable = (): AuthResult => ({
   message: "Supabase пока не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY на сервере.",
 });
 
+const openOverview = () => {
+  if (typeof window !== "undefined" && window.location.pathname !== "/") {
+    window.location.assign("/");
+  }
+};
+
 const humanizeAuthError = (message?: string) => {
   if (!message) return "Не удалось выполнить действие. Попробуйте еще раз.";
   const normalized = message.toLowerCase();
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!supabase) return authUnavailable();
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) return { ok: false, message: humanizeAuthError(error.message) };
+        openOverview();
         return { ok: true };
       },
       async signUp(email, password) {
@@ -86,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!data.session) {
           return { ok: true, message: "Регистрация создана. Проверьте почту и подтвердите email." };
         }
+        openOverview();
         return { ok: true };
       },
       async signOut() {

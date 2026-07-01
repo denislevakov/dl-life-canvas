@@ -4,7 +4,7 @@ import { useCapital } from "@/lib/capital-store";
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
 import { ProgressBar } from "@/components/ProgressBar";
 import { formatMillions, formatRange, formatRub } from "@/lib/format";
-import { ArrowUpRight, Compass } from "lucide-react";
+import { ArrowUpRight, Compass, ListChecks } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -16,11 +16,23 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const formatGoalDeadline = (value: string) => {
+  if (!value) return "без срока";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
+};
+
 function Index() {
   const { state, totals } = useCapital();
   const { minCapital, maxCapital, estimatedCapital, monthlyMinimum, minIncome } = totals;
   const nextTarget = state.targets.find((t) => t.status !== "purchased");
   const currentStage = state.stages.find((s) => s.id === state.currentStageId) ?? state.stages[0];
+  const upcomingGoals = (state.lifeGoals ?? [])
+    .filter((goal) => goal.status === "active")
+    .slice()
+    .sort((a, b) => (a.deadline || "9999-12-31").localeCompare(b.deadline || "9999-12-31"))
+    .slice(0, 3);
 
   const scenarios = state.incomeScenarios.map((income) => ({
     income,
@@ -123,6 +135,41 @@ function Index() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Life goals */}
+      <div className="rounded-xl border border-border bg-card p-6 mb-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
+              <ListChecks className="h-3.5 w-3.5" /> Ближайшие цели
+            </div>
+            <div className="font-display text-xl mt-1">Житейские задачи на горизонте</div>
+          </div>
+          <Link to="/goals" className="shrink-0 text-xs text-[color:var(--gold)] inline-flex items-center gap-1 hover:underline">
+            Все цели <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        {upcomingGoals.length ? (
+          <div className="grid gap-3 lg:grid-cols-3">
+            {upcomingGoals.map((goal) => (
+              <div key={goal.id} className="rounded-lg border border-border bg-[color:var(--surface-elevated)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-display text-lg leading-snug text-foreground">{goal.title}</div>
+                  <div className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground tabular">
+                    {formatGoalDeadline(goal.deadline)}
+                  </div>
+                </div>
+                {goal.note ? <div className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{goal.note}</div> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            Активных целей пока нет. Добавь первую цель, чтобы она появилась на обзоре.
+          </div>
+        )}
       </div>
 
       {/* Next steps */}

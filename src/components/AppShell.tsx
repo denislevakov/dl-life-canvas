@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { CapitalProvider, useCapital } from "@/lib/capital-store";
 import { useAuth } from "@/lib/auth";
-import { LayoutDashboard, Wallet, Target, Receipt, Briefcase, Map, Sparkles, RotateCcw, AlertTriangle, LogOut, UserCircle } from "lucide-react";
+import { LayoutDashboard, Wallet, Target, Receipt, Briefcase, Map, Sparkles, RotateCcw, AlertTriangle, LogOut, UserCircle, ListChecks } from "lucide-react";
 
 const nav = [
   { to: "/", label: "Обзор", icon: LayoutDashboard },
+  { to: "/goals", label: "Цели", icon: ListChecks },
   { to: "/assets", label: "Активы", icon: Wallet },
   { to: "/targets", label: "Целевые активы", icon: Target },
   { to: "/budget", label: "Доход и расходы", icon: Receipt },

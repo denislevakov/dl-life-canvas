@@ -25,6 +25,19 @@ export interface TargetAsset {
   nextStep: string;
 }
 
+export type LifeGoalStatus = "active" | "done" | "backlog";
+
+export interface LifeGoal {
+  id: string;
+  title: string;
+  period: string;
+  deadline: string;
+  progress: number;
+  status: LifeGoalStatus;
+  budget: number;
+  note: string;
+}
+
 export interface Expense {
   id: string;
   name: string;
@@ -56,7 +69,7 @@ export interface LifeStage {
   focus: string;
 }
 
-export type ChangeScope = "asset" | "expense" | "target" | "income" | "state";
+export type ChangeScope = "asset" | "expense" | "target" | "life_goal" | "income" | "state";
 export type ChangeAction = "add" | "update" | "remove" | "reset";
 
 export interface ChangeEntry {
@@ -74,6 +87,7 @@ export interface ChangeEntry {
 interface CapitalState {
   assets: Asset[];
   targets: TargetAsset[];
+  lifeGoals: LifeGoal[];
   expenses: Expense[];
   incomeSources: IncomeSource[];
   stages: LifeStage[];
@@ -117,6 +131,48 @@ const defaultState: CapitalState = {
     { id: "t2", name: "Дом на природе", meaning: "Два этажа аскетичности из природных материалов с баскетбольной площадкой и гаражом в нескольких часах езды от Москвы. В доме есть библиотека, пространство для хранения всех моих коллекций, а также комната для ретрогейминга и медитации с LEGO.", horizon: "40–50", status: "idea", estimatedCost: 35_000_000, saved: 0, nextStep: "Определить требования к локации и площади" },
     { id: "t3", name: "Дом во Флориде", meaning: "Место, чтобы провести старость и забыть о существовании зимы.", horizon: "50+", status: "idea", estimatedCost: 30_000_000, saved: 0, nextStep: "Исследовать рынок southwest Florida" },
     { id: "t4", name: "Квартира в Питере", meaning: "Точка опоры.", horizon: "сейчас", status: "purchased", estimatedCost: 11_000_000, saved: 11_000_000, nextStep: "Поддерживать состояние" },
+  ],
+  lifeGoals: [
+    {
+      id: "g1",
+      title: "Купить робот-пылесос",
+      period: "2026",
+      deadline: "2026-03-31",
+      progress: 25,
+      status: "active",
+      budget: 35_000,
+      note: "Выбрать модель и дождаться хорошей цены",
+    },
+    {
+      id: "g2",
+      title: "Съездить в Казахстан",
+      period: "2026",
+      deadline: "2026-08-31",
+      progress: 10,
+      status: "active",
+      budget: 180_000,
+      note: "Определить города, даты и маршрут",
+    },
+    {
+      id: "g3",
+      title: "Переехать в новую квартиру",
+      period: "2026",
+      deadline: "2026-12-31",
+      progress: 15,
+      status: "active",
+      budget: 250_000,
+      note: "Сформировать требования к району и бюджету",
+    },
+    {
+      id: "g4",
+      title: "Собрать идеи для следующих целей",
+      period: "",
+      deadline: "",
+      progress: 0,
+      status: "backlog",
+      budget: 0,
+      note: "",
+    },
   ],
   expenses: [
     { id: "e1", name: "Аренда квартиры", amount: 80_000 },
@@ -210,6 +266,9 @@ interface Ctx {
   addExpense: (e: Expense) => void;
   removeExpense: (id: string) => void;
   updateTarget: (id: string, patch: Partial<TargetAsset>) => void;
+  addLifeGoal: (goal: LifeGoal) => void;
+  updateLifeGoal: (id: string, patch: Partial<LifeGoal>) => void;
+  removeLifeGoal: (id: string) => void;
   addIncome: (s: IncomeSource) => void;
   updateIncome: (id: string, patch: Partial<IncomeSource>) => void;
   removeIncome: (id: string) => void;
@@ -429,6 +488,32 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       return pushLog(next, diffs.map((d) => ({ scope: "target", action: "update", entityId: id, entityName: cur.name, ...d })));
     });
 
+  const addLifeGoal = (goal: LifeGoal) =>
+    commit((s) =>
+      pushLog(
+        { ...s, lifeGoals: [...(s.lifeGoals ?? []), goal] },
+        [{ scope: "life_goal", action: "add", entityId: goal.id, entityName: goal.title }],
+      ),
+    );
+  const updateLifeGoal = (id: string, patch: Partial<LifeGoal>) =>
+    commit((s) => {
+      const goals = s.lifeGoals ?? [];
+      const cur = goals.find((g) => g.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, lifeGoals: goals.map((g) => (g.id === id ? { ...g, ...patch } : g)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "life_goal", action: "update", entityId: id, entityName: cur.title, ...d })));
+    });
+  const removeLifeGoal = (id: string) =>
+    commit((s) => {
+      const goals = s.lifeGoals ?? [];
+      const cur = goals.find((g) => g.id === id);
+      return pushLog(
+        { ...s, lifeGoals: goals.filter((g) => g.id !== id) },
+        [{ scope: "life_goal", action: "remove", entityId: id, entityName: cur?.title }],
+      );
+    });
+
   const addIncome = (src: IncomeSource) =>
     commit((s) => pushLog({ ...s, incomeSources: [...s.incomeSources, src] }, [{ scope: "income", action: "add", entityId: src.id, entityName: src.name }]));
   const updateIncome = (id: string, patch: Partial<IncomeSource>) =>
@@ -479,6 +564,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         addExpense,
         removeExpense,
         updateTarget,
+        addLifeGoal,
+        updateLifeGoal,
+        removeLifeGoal,
         addIncome,
         updateIncome,
         removeIncome,
