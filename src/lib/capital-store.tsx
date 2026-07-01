@@ -44,6 +44,34 @@ export interface Expense {
   amount: number;
 }
 
+export type CashAccountKind = "card" | "cash" | "safety";
+
+export interface CashAccount {
+  id: string;
+  name: string;
+  kind: CashAccountKind;
+  balance: number;
+}
+
+export interface TransactionCategory {
+  id: string;
+  name: string;
+}
+
+export type MoneyTransactionType = "income" | "expense";
+export type MoneyTransactionSource = "manual" | "pdf";
+
+export interface MoneyTransaction {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  type: MoneyTransactionType;
+  categoryId: string;
+  accountId?: string;
+  source: MoneyTransactionSource;
+}
+
 export interface IncomeSource {
   id: string;
   name: string;
@@ -69,7 +97,7 @@ export interface LifeStage {
   focus: string;
 }
 
-export type ChangeScope = "asset" | "expense" | "target" | "life_goal" | "income" | "state";
+export type ChangeScope = "asset" | "expense" | "target" | "life_goal" | "cash_account" | "transaction" | "transaction_category" | "income" | "state";
 export type ChangeAction = "add" | "update" | "remove" | "reset";
 
 export interface ChangeEntry {
@@ -89,6 +117,9 @@ interface CapitalState {
   targets: TargetAsset[];
   lifeGoals: LifeGoal[];
   expenses: Expense[];
+  cashAccounts: CashAccount[];
+  transactionCategories: TransactionCategory[];
+  transactions: MoneyTransaction[];
   incomeSources: IncomeSource[];
   stages: LifeStage[];
   incomeScenarios: number[];
@@ -187,6 +218,23 @@ const defaultState: CapitalState = {
     { id: "e10", name: "Фитнес", amount: 2_300 },
     { id: "e11", name: "Клининг", amount: 7_000 },
   ],
+  cashAccounts: [
+    { id: "ca1", name: "Карта", kind: "card", balance: 0 },
+    { id: "ca2", name: "Наличные", kind: "cash", balance: 0 },
+    { id: "ca3", name: "Подушка безопасности", kind: "safety", balance: 0 },
+  ],
+  transactionCategories: [
+    { id: "cat_food", name: "Еда" },
+    { id: "cat_home", name: "Дом" },
+    { id: "cat_transport", name: "Транспорт" },
+    { id: "cat_health", name: "Здоровье" },
+    { id: "cat_family", name: "Семья" },
+    { id: "cat_subscriptions", name: "Подписки" },
+    { id: "cat_travel", name: "Путешествия" },
+    { id: "cat_income", name: "Доход" },
+    { id: "cat_other", name: "Другое" },
+  ],
+  transactions: [],
   incomeSources: [],
   stages: [
     {
@@ -265,6 +313,16 @@ interface Ctx {
   updateExpense: (id: string, patch: Partial<Expense>) => void;
   addExpense: (e: Expense) => void;
   removeExpense: (id: string) => void;
+  updateCashAccount: (id: string, patch: Partial<CashAccount>) => void;
+  addCashAccount: (account: CashAccount) => void;
+  removeCashAccount: (id: string) => void;
+  addTransactionCategory: (category: TransactionCategory) => void;
+  updateTransactionCategory: (id: string, patch: Partial<TransactionCategory>) => void;
+  removeTransactionCategory: (id: string) => void;
+  addTransaction: (transaction: MoneyTransaction) => void;
+  importTransactions: (transactions: MoneyTransaction[]) => void;
+  updateTransaction: (id: string, patch: Partial<MoneyTransaction>) => void;
+  removeTransaction: (id: string) => void;
   updateTarget: (id: string, patch: Partial<TargetAsset>) => void;
   addLifeGoal: (goal: LifeGoal) => void;
   updateLifeGoal: (id: string, patch: Partial<LifeGoal>) => void;
@@ -282,6 +340,11 @@ interface Ctx {
     minIncome: number;
     activeIncome: number;
     passiveIncome: number;
+    currentBalance: number;
+    cardCashBalance: number;
+    safetyBalance: number;
+    monthExpenseTotal: number;
+    monthIncomeTotal: number;
   };
 }
 
@@ -479,6 +542,102 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       return pushLog({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }, [{ scope: "expense", action: "remove", entityId: id, entityName: cur?.name }]);
     });
 
+  const updateCashAccount = (id: string, patch: Partial<CashAccount>) =>
+    commit((s) => {
+      const accounts = s.cashAccounts ?? [];
+      const cur = accounts.find((account) => account.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, cashAccounts: accounts.map((account) => (account.id === id ? { ...account, ...patch } : account)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "cash_account", action: "update", entityId: id, entityName: cur.name, ...d })));
+    });
+  const addCashAccount = (account: CashAccount) =>
+    commit((s) =>
+      pushLog(
+        { ...s, cashAccounts: [...(s.cashAccounts ?? []), account] },
+        [{ scope: "cash_account", action: "add", entityId: account.id, entityName: account.name }],
+      ),
+    );
+  const removeCashAccount = (id: string) =>
+    commit((s) => {
+      const accounts = s.cashAccounts ?? [];
+      const cur = accounts.find((account) => account.id === id);
+      return pushLog(
+        { ...s, cashAccounts: accounts.filter((account) => account.id !== id) },
+        [{ scope: "cash_account", action: "remove", entityId: id, entityName: cur?.name }],
+      );
+    });
+
+  const addTransactionCategory = (category: TransactionCategory) =>
+    commit((s) =>
+      pushLog(
+        { ...s, transactionCategories: [...(s.transactionCategories ?? []), category] },
+        [{ scope: "transaction_category", action: "add", entityId: category.id, entityName: category.name }],
+      ),
+    );
+  const updateTransactionCategory = (id: string, patch: Partial<TransactionCategory>) =>
+    commit((s) => {
+      const categories = s.transactionCategories ?? [];
+      const cur = categories.find((category) => category.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, transactionCategories: categories.map((category) => (category.id === id ? { ...category, ...patch } : category)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "transaction_category", action: "update", entityId: id, entityName: cur.name, ...d })));
+    });
+  const removeTransactionCategory = (id: string) =>
+    commit((s) => {
+      const categories = s.transactionCategories ?? [];
+      const cur = categories.find((category) => category.id === id);
+      const fallback = (s.transactionCategories ?? []).find((category) => category.id === "cat_other")?.id ?? "";
+      return pushLog(
+        {
+          ...s,
+          transactionCategories: categories.filter((category) => category.id !== id),
+          transactions: (s.transactions ?? []).map((transaction) =>
+            transaction.categoryId === id ? { ...transaction, categoryId: fallback } : transaction,
+          ),
+        },
+        [{ scope: "transaction_category", action: "remove", entityId: id, entityName: cur?.name }],
+      );
+    });
+
+  const addTransaction = (transaction: MoneyTransaction) =>
+    commit((s) =>
+      pushLog(
+        { ...s, transactions: [transaction, ...(s.transactions ?? [])] },
+        [{ scope: "transaction", action: "add", entityId: transaction.id, entityName: transaction.description }],
+      ),
+    );
+  const importTransactions = (transactions: MoneyTransaction[]) =>
+    commit((s) => {
+      if (!transactions.length) return s;
+      const existing = new Set((s.transactions ?? []).map((transaction) => `${transaction.date}|${transaction.amount}|${transaction.description}`));
+      const fresh = transactions.filter((transaction) => !existing.has(`${transaction.date}|${transaction.amount}|${transaction.description}`));
+      if (!fresh.length) return s;
+      return pushLog(
+        { ...s, transactions: [...fresh, ...(s.transactions ?? [])] },
+        [{ scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` }],
+      );
+    });
+  const updateTransaction = (id: string, patch: Partial<MoneyTransaction>) =>
+    commit((s) => {
+      const transactions = s.transactions ?? [];
+      const cur = transactions.find((transaction) => transaction.id === id);
+      if (!cur) return s;
+      const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
+      const next = { ...s, transactions: transactions.map((transaction) => (transaction.id === id ? { ...transaction, ...patch } : transaction)) };
+      return pushLog(next, diffs.map((d) => ({ scope: "transaction", action: "update", entityId: id, entityName: cur.description, ...d })));
+    });
+  const removeTransaction = (id: string) =>
+    commit((s) => {
+      const transactions = s.transactions ?? [];
+      const cur = transactions.find((transaction) => transaction.id === id);
+      return pushLog(
+        { ...s, transactions: transactions.filter((transaction) => transaction.id !== id) },
+        [{ scope: "transaction", action: "remove", entityId: id, entityName: cur?.description }],
+      );
+    });
+
   const updateTarget = (id: string, patch: Partial<TargetAsset>) =>
     commit((s) => {
       const cur = s.targets.find((t) => t.id === id);
@@ -551,6 +710,15 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const minIncome = state.minIncome;
   const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "active").reduce((s, i) => s + i.monthly, 0);
   const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
+  const cashAccounts = state.cashAccounts ?? [];
+  const transactions = state.transactions ?? [];
+  const currentBalance = cashAccounts.reduce((s, account) => s + account.balance, 0);
+  const cardCashBalance = cashAccounts.filter((account) => account.kind === "card" || account.kind === "cash").reduce((s, account) => s + account.balance, 0);
+  const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
+  const monthExpenseTotal = monthTransactions.filter((transaction) => transaction.type === "expense").reduce((s, transaction) => s + transaction.amount, 0);
+  const monthIncomeTotal = monthTransactions.filter((transaction) => transaction.type === "income").reduce((s, transaction) => s + transaction.amount, 0);
 
   return (
     <CapitalContext.Provider
@@ -563,6 +731,16 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         updateExpense,
         addExpense,
         removeExpense,
+        updateCashAccount,
+        addCashAccount,
+        removeCashAccount,
+        addTransactionCategory,
+        updateTransactionCategory,
+        removeTransactionCategory,
+        addTransaction,
+        importTransactions,
+        updateTransaction,
+        removeTransaction,
         updateTarget,
         addLifeGoal,
         updateLifeGoal,
@@ -572,7 +750,20 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         removeIncome,
         reset,
         clearChangeLog,
-        totals: { minCapital, estimatedCapital, maxCapital, monthlyMinimum, minIncome, activeIncome, passiveIncome },
+        totals: {
+          minCapital,
+          estimatedCapital,
+          maxCapital,
+          monthlyMinimum,
+          minIncome,
+          activeIncome,
+          passiveIncome,
+          currentBalance,
+          cardCashBalance,
+          safetyBalance,
+          monthExpenseTotal,
+          monthIncomeTotal,
+        },
       }}
     >
       {children}

@@ -25,7 +25,7 @@ const formatGoalDeadline = (value: string) => {
 
 function Index() {
   const { state, totals } = useCapital();
-  const { minCapital, maxCapital, estimatedCapital, monthlyMinimum, minIncome } = totals;
+  const { minCapital, maxCapital, estimatedCapital, monthlyMinimum, minIncome, currentBalance, cardCashBalance, safetyBalance, monthExpenseTotal } = totals;
   const nextTarget = state.targets.find((t) => t.status !== "purchased");
   const currentStage = state.stages.find((s) => s.id === state.currentStageId) ?? state.stages[0];
   const upcomingGoals = (state.lifeGoals ?? [])
@@ -109,6 +109,25 @@ function Index() {
           label="Активы идентичности"
           value={`${state.assets.filter((a) => a.identity).length} коллекции`}
         />
+      </div>
+
+      {/* Current money */}
+      <div className="rounded-xl border border-border bg-card p-6 mb-6">
+        <div className="flex items-center justify-between gap-4 mb-5">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Финансовый снимок</div>
+            <div className="font-display text-xl mt-1">Деньги сейчас</div>
+          </div>
+          <Link to="/budget" className="text-xs text-[color:var(--gold)] inline-flex items-center gap-1 hover:underline">
+            Доходы / Расходы <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4">
+          <MetricCard label="Текущий баланс" value={formatRub(currentBalance)} sublabel="по счетам" accent="gold" />
+          <MetricCard label="Карта / наличные" value={formatRub(cardCashBalance)} sublabel="доступно" />
+          <MetricCard label="Подушка" value={formatRub(safetyBalance)} sublabel="резерв" accent="green" />
+          <MetricCard label="Расходы за месяц" value={formatRub(monthExpenseTotal)} sublabel="по операциям" />
+        </div>
       </div>
 
       {/* Income scenarios */}
