@@ -110,8 +110,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
     const targetIndex = actions.findIndex((action) => action.id === targetId);
     if (sourceIndex < 0 || targetIndex < 0) return;
     const [moved] = actions.splice(sourceIndex, 1);
-    const nextTargetIndex = actions.findIndex((action) => action.id === targetId);
-    actions.splice(nextTargetIndex, 0, moved);
+    actions.splice(targetIndex, 0, moved);
     updateLifeArea(area.id, { actions });
     setDraggedAction(null);
   };
@@ -123,8 +122,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
     const targetIndex = allAreas.findIndex((area) => area.id === targetId);
     if (sourceIndex < 0 || targetIndex < 0 || allAreas[sourceIndex].kind !== kind || allAreas[targetIndex].kind !== kind) return;
     const [moved] = allAreas.splice(sourceIndex, 1);
-    const nextTargetIndex = allAreas.findIndex((area) => area.id === targetId);
-    allAreas.splice(nextTargetIndex, 0, moved);
+    allAreas.splice(targetIndex, 0, moved);
     update({ lifeAreas: allAreas });
     setDraggedAreaId(null);
   };
@@ -413,19 +411,54 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                         {(area.actions ?? []).map((action) => {
                           const isExpanded = expandedActionId === action.id;
                           return (
-                            <div key={action.id} className="rounded-lg border border-border bg-background/55">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
-                                className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-elevated)]/60"
-                              >
-                                <div className="min-w-0 flex-1 text-sm text-foreground">{action.title}</div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <span>{formatDeadline(action.deadline)}</span>
-                                  <StatusBadge status={action.status} />
-                                  <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isExpanded ? "rotate-180 text-[color:var(--gold)]" : "")} />
+                            <div
+                              key={action.id}
+                              onDragOver={(event) => {
+                                if (draggedAction?.areaId === area.id && draggedAction.actionId !== action.id) {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                const sourceId = draggedAction?.areaId === area.id ? draggedAction.actionId : event.dataTransfer.getData("text/plain");
+                                if (sourceId) reorderActions(area, sourceId, action.id);
+                              }}
+                              className={
+                                "rounded-lg border border-border bg-background/55 transition-opacity " +
+                                (draggedAction?.actionId === action.id ? "opacity-50" : "")
+                              }
+                            >
+                              <div className="flex items-stretch">
+                                <div
+                                  draggable
+                                  onDragStart={(event) => {
+                                    event.stopPropagation();
+                                    setDraggedAction({ areaId: area.id, actionId: action.id });
+                                    event.dataTransfer.effectAllowed = "move";
+                                    event.dataTransfer.setData("text/plain", action.id);
+                                  }}
+                                  onDragEnd={() => setDraggedAction(null)}
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="inline-flex w-10 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)]/60 hover:text-foreground active:cursor-grabbing"
+                                  title="Перетащить действие"
+                                >
+                                  <GripVertical className="h-4 w-4" />
                                 </div>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
+                                  className="flex min-h-11 flex-1 flex-wrap items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-elevated)]/60"
+                                >
+                                  <div className="min-w-0 flex-1 text-sm text-foreground">{action.title}</div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>{formatDeadline(action.deadline)}</span>
+                                    <StatusBadge status={action.status} />
+                                    <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isExpanded ? "rotate-180 text-[color:var(--gold)]" : "")} />
+                                  </div>
+                                </button>
+                              </div>
                               {isExpanded ? (
                                 <div className="border-t border-border px-3 py-3">
                                   <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Комментарий</div>
