@@ -2,17 +2,19 @@ import { useState } from "react";
 
 export function EditableNumber({
   value,
+  editValue,
   onChange,
   suffix = "₽",
   className = "",
 }: {
   value: number;
+  editValue?: number;
   onChange: (n: number) => void;
   suffix?: string;
   className?: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(String(editValue ?? value));
 
   if (editing) {
     return (
@@ -29,7 +31,7 @@ export function EditableNumber({
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") {
-            setDraft(String(value));
+            setDraft(String(editValue ?? value));
             setEditing(false);
           }
         }}
@@ -40,7 +42,7 @@ export function EditableNumber({
   return (
     <button
       onClick={() => {
-        setDraft(String(value));
+        setDraft(String(editValue ?? value));
         setEditing(true);
       }}
       className={"tabular text-left hover:text-[color:var(--gold)] transition-colors " + className}
