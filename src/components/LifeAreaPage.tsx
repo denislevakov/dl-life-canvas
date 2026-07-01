@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -35,11 +35,17 @@ const statusOrder: Record<LifeAreaStatus, number> = {
   done: 2,
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const formatDeadline = (value: string) => {
+  if (!value) return "без срока";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
+};
 
 export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, emptyTitle }: LifeAreaPageProps) {
   const { state, addLifeArea, updateLifeArea, removeLifeArea } = useCapital();
   const [filter, setFilter] = useState<Filter>("all");
+  const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "" });
 
   const areas = useMemo(() => (state.lifeAreas ?? []).filter((area) => area.kind === kind), [kind, state.lifeAreas]);
@@ -66,7 +72,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   const addArea = () => {
     const areaTitle = draft.title.trim();
     if (!areaTitle) return;
-    addLifeArea({
+    const area: LifeArea = {
       id: `la_${kind}_${Date.now()}`,
       kind,
       title: areaTitle,
@@ -74,8 +80,10 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
       description: draft.description.trim(),
       status: "active",
       actions: [],
-    });
+    };
+    addLifeArea(area);
     setDraft({ title: "", horizon: String(new Date().getFullYear()), description: "" });
+    setEditingAreaId(area.id);
     setFilter("active");
   };
 
@@ -98,6 +106,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
         },
       ],
     });
+    setEditingAreaId(area.id);
   };
 
   const removeAction = (area: LifeArea, actionId: string) => {
@@ -184,112 +193,167 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
           {visibleAreas.map((area) => {
+            const isEditing = editingAreaId === area.id;
             const openActions = (area.actions ?? []).filter((action) => action.status === "active").length;
+
             return (
               <article key={area.id} className="rounded-xl border border-border bg-card p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <input
-                      value={area.title}
-                      onChange={(event) => updateLifeArea(area.id, { title: event.target.value })}
-                      className="w-full bg-transparent font-display text-xl text-foreground outline-none"
-                    />
+                    {isEditing ? (
+                      <input
+                        value={area.title}
+                        onChange={(event) => updateLifeArea(area.id, { title: event.target.value })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 font-display text-xl text-foreground outline-none"
+                      />
+                    ) : (
+                      <div className="font-display text-xl text-foreground">{area.title}</div>
+                    )}
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <StatusBadge status={area.status} />
                       <span className="inline-flex items-center gap-1">
                         <CalendarDays className="h-3.5 w-3.5" />
-                        <input
-                          value={area.horizon}
-                          onChange={(event) => updateLifeArea(area.id, { horizon: event.target.value })}
-                          className="w-28 bg-transparent outline-none"
-                        />
+                        {area.horizon || "без срока"}
                       </span>
                       <span>{openActions} в работе</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={area.status}
-                      onChange={(event) => updateLifeArea(area.id, { status: event.target.value as LifeAreaStatus })}
-                      className="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none"
-                    >
-                      {statusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => removeLifeArea(area.id)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-                      aria-label="Удалить"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setEditingAreaId(isEditing ? null : area.id)}
+                    className={
+                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
+                      (isEditing
+                        ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                        : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
+                    }
+                  >
+                    {isEditing ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                    {isEditing ? "Готово" : "Редактировать"}
+                  </button>
                 </div>
 
-                <textarea
-                  value={area.description}
-                  onChange={(event) => updateLifeArea(area.id, { description: event.target.value })}
-                  className="mt-4 min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground outline-none"
-                />
+                {isEditing ? (
+                  <>
+                    <div className="mt-4 grid gap-3 md:grid-cols-[minmax(140px,1fr)_160px]">
+                      <label className="block">
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Срок</span>
+                        <input
+                          value={area.horizon}
+                          onChange={(event) => updateLifeArea(area.id, { horizon: event.target.value })}
+                          className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+                        />
+                      </label>
 
-                <div className="mt-5 space-y-2">
-                  {(area.actions ?? []).map((action) => (
-                    <div key={action.id} className="grid gap-2 rounded-lg border border-border bg-background/55 p-3 md:grid-cols-[minmax(180px,1fr)_140px_120px_36px] md:items-center">
-                      <input
-                        value={action.title}
-                        onChange={(event) => updateAction(area, action.id, { title: event.target.value })}
-                        className="w-full bg-transparent text-sm text-foreground outline-none"
-                      />
-                      <input
-                        type="date"
-                        value={action.deadline}
-                        onChange={(event) => updateAction(area, action.id, { deadline: event.target.value })}
-                        className="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none"
-                      />
-                      <button
-                        onClick={() =>
-                          updateAction(area, action.id, {
-                            status: action.status === "done" ? "active" : "done",
-                          })
-                        }
-                        className={
-                          "inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-xs transition-colors " +
-                          (action.status === "done"
-                            ? "border-[color:oklch(0.4_0.06_160)] bg-[color:oklch(0.3_0.06_160)] text-[color:oklch(0.85_0.1_160)]"
-                            : "border-border text-muted-foreground hover:text-foreground")
-                        }
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        {action.status === "done" ? "Готово" : "В работе"}
-                      </button>
-                      <button
-                        onClick={() => removeAction(area, action.id)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-                        aria-label="Удалить действие"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                      <input
-                        value={action.note}
-                        onChange={(event) => updateAction(area, action.id, { note: event.target.value })}
-                        placeholder="Комментарий"
-                        className="md:col-span-4 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground"
-                      />
+                      <label className="block">
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Статус</span>
+                        <select
+                          value={area.status}
+                          onChange={(event) => updateLifeArea(area.id, { status: event.target.value as LifeAreaStatus })}
+                          className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none"
+                        >
+                          {statusOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
-                  ))}
-                </div>
 
-                <button
-                  onClick={() => addAction(area)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Добавить действие
-                </button>
+                    <textarea
+                      value={area.description}
+                      onChange={(event) => updateLifeArea(area.id, { description: event.target.value })}
+                      placeholder="Описание"
+                      className="mt-4 min-h-36 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-muted-foreground outline-none placeholder:text-muted-foreground"
+                    />
+
+                    <div className="mt-5 space-y-2">
+                      {(area.actions ?? []).map((action) => (
+                        <div key={action.id} className="grid gap-2 rounded-lg border border-border bg-background/55 p-3 md:grid-cols-[minmax(180px,1fr)_140px_120px_36px] md:items-center">
+                          <input
+                            value={action.title}
+                            onChange={(event) => updateAction(area, action.id, { title: event.target.value })}
+                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm text-foreground outline-none"
+                          />
+                          <input
+                            type="date"
+                            value={action.deadline}
+                            onChange={(event) => updateAction(area, action.id, { deadline: event.target.value })}
+                            className="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none"
+                          />
+                          <button
+                            onClick={() =>
+                              updateAction(area, action.id, {
+                                status: action.status === "done" ? "active" : "done",
+                              })
+                            }
+                            className={
+                              "inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-xs transition-colors " +
+                              (action.status === "done"
+                                ? "border-[color:oklch(0.4_0.06_160)] bg-[color:oklch(0.3_0.06_160)] text-[color:oklch(0.85_0.1_160)]"
+                                : "border-border text-muted-foreground hover:text-foreground")
+                            }
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {action.status === "done" ? "Готово" : "В работе"}
+                          </button>
+                          <button
+                            onClick={() => removeAction(area, action.id)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                            aria-label="Удалить действие"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <textarea
+                            value={action.note}
+                            onChange={(event) => updateAction(area, action.id, { note: event.target.value })}
+                            placeholder="Комментарий"
+                            className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-2 py-2 text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground md:col-span-4"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => addAction(area)}
+                        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Добавить действие
+                      </button>
+                      <button
+                        onClick={() => removeLifeArea(area.id)}
+                        className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Удалить карточку
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-4 text-sm leading-6 text-muted-foreground">{area.description || "Описание не добавлено"}</div>
+                    {(area.actions ?? []).length ? (
+                      <div className="mt-5 space-y-2">
+                        {(area.actions ?? []).slice(0, 3).map((action) => (
+                          <div key={action.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/55 px-3 py-2">
+                            <div className="text-sm text-foreground">{action.title}</div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{formatDeadline(action.deadline)}</span>
+                              <StatusBadge status={action.status} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-5 rounded-lg border border-dashed border-border py-5 text-center text-sm text-muted-foreground">
+                        Действий пока нет
+                      </div>
+                    )}
+                  </>
+                )}
               </article>
             );
           })}

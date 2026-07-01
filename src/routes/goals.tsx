@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, Lightbulb, PlayCircle, Plus, Trash2, WalletCards } from "lucide-react";
+import { CalendarDays, CheckCircle2, Lightbulb, Pencil, PlayCircle, Plus, Trash2, WalletCards } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { MetricCard, PageContainer, PageHeader } from "@/components/MetricCard";
@@ -31,6 +31,12 @@ const statusOrder: Record<Exclude<LifeGoalStatus, "backlog">, number> = {
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const currentYear = () => String(new Date().getFullYear());
+const formatGoalDeadline = (value: string) => {
+  if (!value) return "без срока";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
+};
 
 function EmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
   return (
@@ -57,6 +63,7 @@ function GoalsPage() {
   const { state, addLifeGoal, updateLifeGoal, removeLifeGoal } = useCapital();
   const goals = state.lifeGoals ?? [];
   const [filter, setFilter] = useState<Filter>("all");
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [backlogTitle, setBacklogTitle] = useState("");
   const [draft, setDraft] = useState({
     title: "",
@@ -229,92 +236,125 @@ function GoalsPage() {
         <EmptyState onQuickAdd={quickAdd} />
       ) : (
         <div className="space-y-3">
-          {visibleGoals.map((goal) => (
-            <div key={goal.id} className="rounded-xl border border-border bg-card p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  value={goal.title}
-                  onChange={(event) => updateLifeGoal(goal.id, { title: event.target.value })}
-                  className="min-w-0 flex-1 bg-transparent font-display text-xl text-foreground outline-none"
-                />
-                <StatusBadge status={goal.status} />
-              </div>
-
-              <textarea
-                value={goal.note}
-                onChange={(event) => updateLifeGoal(goal.id, { note: event.target.value })}
-                placeholder="Заметка или следующий шаг"
-                className="mt-2 min-h-[44px] w-full resize-none rounded-md border border-transparent bg-transparent p-0 text-sm leading-6 text-muted-foreground outline-none placeholder:text-muted-foreground/70 focus:border-border focus:bg-background focus:p-3"
-              />
-
-              <div className="mt-4 rounded-lg border border-border bg-[color:var(--surface-elevated)]/40 p-4">
-                <div className="grid gap-4 md:grid-cols-[120px_160px_140px_minmax(180px,1fr)_auto] md:items-end">
-                  <label className="block">
-                    <span className="flex min-h-4 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                      <CalendarDays className="h-3.5 w-3.5 opacity-0" /> Год
-                    </span>
-                    <input
-                      value={goal.period}
-                      onChange={(event) => updateLifeGoal(goal.id, { period: event.target.value })}
-                      className="mt-2 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="flex min-h-4 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                      <CalendarDays className="h-3.5 w-3.5" /> Срок
-                    </span>
-                    <input
-                      type="date"
-                      value={goal.deadline}
-                      onChange={(event) => updateLifeGoal(goal.id, { deadline: event.target.value })}
-                      className="mt-2 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
-                    />
-                  </label>
-
-                  <div>
-                    <div className="flex min-h-4 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                      <WalletCards className="h-3.5 w-3.5" /> Бюджет
+          {visibleGoals.map((goal) => {
+            const isEditing = editingGoalId === goal.id;
+            return (
+              <div key={goal.id} className="rounded-xl border border-border bg-card p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    {isEditing ? (
+                      <input
+                        value={goal.title}
+                        onChange={(event) => updateLifeGoal(goal.id, { title: event.target.value })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 font-display text-xl text-foreground outline-none"
+                      />
+                    ) : (
+                      <div className="font-display text-xl text-foreground">{goal.title}</div>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <StatusBadge status={goal.status} />
+                      <span>{goal.period || "без периода"}</span>
+                      <span>{formatGoalDeadline(goal.deadline)}</span>
                     </div>
-                    <EditableNumber value={goal.budget} onChange={(value) => updateLifeGoal(goal.id, { budget: value })} className="mt-2 text-sm" />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {statusControls.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.value}
-                          onClick={() =>
-                            updateLifeGoal(goal.id, {
-                              status: item.value,
-                            })
-                          }
-                          className={
-                            "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
-                            (goal.status === item.value
-                              ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-                              : "border-border text-muted-foreground hover:bg-background hover:text-foreground")
-                          }
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
                   <button
-                    onClick={() => removeLifeGoal(goal.id)}
-                    className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setEditingGoalId(isEditing ? null : goal.id)}
+                    className={
+                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
+                      (isEditing
+                        ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                        : "border-border text-muted-foreground hover:bg-[color:var(--surface-elevated)] hover:text-foreground")
+                    }
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Удалить
+                    {isEditing ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                    {isEditing ? "Готово" : "Редактировать"}
                   </button>
                 </div>
+
+                {isEditing ? (
+                  <>
+                    <textarea
+                      value={goal.note}
+                      onChange={(event) => updateLifeGoal(goal.id, { note: event.target.value })}
+                      placeholder="Заметка или следующий шаг"
+                      className="mt-4 min-h-32 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-muted-foreground outline-none placeholder:text-muted-foreground/70"
+                    />
+
+                    <div className="mt-4 rounded-lg border border-border bg-[color:var(--surface-elevated)]/40 p-4">
+                      <div className="grid gap-4 md:grid-cols-[120px_160px_140px_minmax(180px,1fr)_auto] md:items-end">
+                        <label className="block">
+                          <span className="flex min-h-4 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            <CalendarDays className="h-3.5 w-3.5 opacity-0" /> Год
+                          </span>
+                          <input
+                            value={goal.period}
+                            onChange={(event) => updateLifeGoal(goal.id, { period: event.target.value })}
+                            className="mt-2 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="flex min-h-4 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            <CalendarDays className="h-3.5 w-3.5" /> Срок
+                          </span>
+                          <input
+                            type="date"
+                            value={goal.deadline}
+                            onChange={(event) => updateLifeGoal(goal.id, { deadline: event.target.value })}
+                            className="mt-2 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                          />
+                        </label>
+
+                        <div>
+                          <div className="flex min-h-4 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            <WalletCards className="h-3.5 w-3.5" /> Бюджет
+                          </div>
+                          <EditableNumber value={goal.budget} onChange={(value) => updateLifeGoal(goal.id, { budget: value })} className="mt-2 text-sm" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {statusControls.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <button
+                                key={item.value}
+                                onClick={() =>
+                                  updateLifeGoal(goal.id, {
+                                    status: item.value,
+                                  })
+                                }
+                                className={
+                                  "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors " +
+                                  (goal.status === item.value
+                                    ? "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
+                                    : "border-border text-muted-foreground hover:bg-background hover:text-foreground")
+                                }
+                              >
+                                <Icon className="h-3.5 w-3.5" />
+                                {item.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          onClick={() => removeLifeGoal(goal.id)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {goal.note || "Заметка не добавлена"}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
