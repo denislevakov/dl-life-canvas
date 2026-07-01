@@ -42,6 +42,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
   const [draggedAreaId, setDraggedAreaId] = useState<string | null>(null);
+  const [draggedAction, setDraggedAction] = useState<{ areaId: string; actionId: string } | null>(null);
   const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "" });
 
   const areas = useMemo(() => (state.lifeAreas ?? []).filter((area) => area.kind === kind), [kind, state.lifeAreas]);
@@ -100,6 +101,19 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
   const removeAction = (area: LifeArea, actionId: string) => {
     updateLifeArea(area.id, { actions: (area.actions ?? []).filter((action) => action.id !== actionId) });
+  };
+
+  const reorderActions = (area: LifeArea, sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const actions = [...(area.actions ?? [])];
+    const sourceIndex = actions.findIndex((action) => action.id === sourceId);
+    const targetIndex = actions.findIndex((action) => action.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = actions.splice(sourceIndex, 1);
+    const nextTargetIndex = actions.findIndex((action) => action.id === targetId);
+    actions.splice(nextTargetIndex, 0, moved);
+    updateLifeArea(area.id, { actions });
+    setDraggedAction(null);
   };
 
   const reorderAreas = (sourceId: string, targetId: string) => {
@@ -302,7 +316,34 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
                     <div className="mt-5 space-y-2">
                       {(area.actions ?? []).map((action) => (
-                        <div key={action.id} className="grid gap-2 rounded-lg border border-border bg-background/55 p-3 md:grid-cols-[minmax(180px,1fr)_140px_120px_36px] md:items-center">
+                        <div
+                          key={action.id}
+                          onDragOver={(event) => {
+                            if (draggedAction?.areaId === area.id && draggedAction.actionId !== action.id) event.preventDefault();
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            const sourceId = draggedAction?.areaId === area.id ? draggedAction.actionId : event.dataTransfer.getData("text/plain");
+                            if (sourceId) reorderActions(area, sourceId, action.id);
+                          }}
+                          className={
+                            "grid gap-2 rounded-lg border border-border bg-background/55 p-3 transition-opacity md:grid-cols-[32px_minmax(180px,1fr)_140px_120px_36px] md:items-center " +
+                            (draggedAction?.actionId === action.id ? "opacity-50" : "")
+                          }
+                        >
+                          <div
+                            draggable
+                            onDragStart={(event) => {
+                              setDraggedAction({ areaId: area.id, actionId: action.id });
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", action.id);
+                            }}
+                            onDragEnd={() => setDraggedAction(null)}
+                            className="inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
+                            title="Перетащить действие"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </div>
                           <input
                             value={action.title}
                             onChange={(event) => updateAction(area, action.id, { title: event.target.value })}
@@ -341,7 +382,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                             value={action.note}
                             onChange={(event) => updateAction(area, action.id, { note: event.target.value })}
                             placeholder="Комментарий"
-                            className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-2 py-2 text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground md:col-span-4"
+                            className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-2 py-2 text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground md:col-span-5"
                           />
                         </div>
                       ))}
