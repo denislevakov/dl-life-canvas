@@ -45,11 +45,9 @@ export function AuthScreen() {
           <section>
             <div className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--gold)]">Life Capital</div>
             <h1 className="mt-4 font-display text-5xl leading-tight text-foreground md:text-6xl">
-              Личный дашборд жизни
+              LIFE IS GOOD
+              <span className="block">Дашборд жизни</span>
             </h1>
-            <p className="mt-5 max-w-xl text-sm leading-6 text-muted-foreground">
-              Вход закрывает доступ к личной финансовой карте. Данные по-прежнему хранятся локально в браузере; Supabase используется только для регистрации и сессии.
-            </p>
           </section>
 
           <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
