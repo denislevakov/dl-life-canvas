@@ -86,7 +86,8 @@ const parseSberStatementLines = (lines: string[], categories: TransactionCategor
     const date = normalizeDate(dateMatch[1]);
     if (!amount || !date) return;
 
-    const categoryText = tail.replace(amountText, "").replace(amounts.at(-1) ?? "", "").replace(/\s+/g, " ").trim();
+    const balanceText = amounts.length ? amounts[amounts.length - 1] : "";
+    const categoryText = tail.replace(amountText, "").replace(balanceText, "").replace(/\s+/g, " ").trim();
     const nextDescription = descriptionFromNextLine(lines[index + 1] ?? "");
     const combinedText = [categoryText, nextDescription].filter(Boolean).join(" · ");
     const description = combinedText || "Операция из PDF";
@@ -124,7 +125,7 @@ const parseTransactionsFromText = (text: string, categories: TransactionCategory
     if (!dateMatch) return;
 
     const amounts = [...line.matchAll(amountPattern)].map((match) => match[1]);
-    const amountText = amounts.at(-1);
+    const amountText = amounts.length ? amounts[amounts.length - 1] : undefined;
     if (!amountText) return;
 
     const amount = normalizeAmount(amountText);
