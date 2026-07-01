@@ -227,88 +227,98 @@ function BudgetPage() {
         </section>
       </div>
 
-      <div className="mb-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <section className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-4 flex items-center justify-between gap-4">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Счета</div>
-              <div className="mt-1 font-display text-xl">Баланс руками</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Баланс</div>
+              <div className="mt-1 font-display text-xl">{formatRub(totals.currentBalance)}</div>
             </div>
-            <div className="text-right text-xs text-muted-foreground">
-              Обновляй после сверки с банком
+            <div className="grid grid-cols-2 gap-3 text-right text-xs md:grid-cols-3">
+              <div>
+                <div className="text-muted-foreground">Карта / наличные</div>
+                <div className="mt-1 tabular text-foreground">{formatRub(totals.cardCashBalance)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Подушка</div>
+                <div className="mt-1 tabular text-foreground">{formatRub(totals.safetyBalance)}</div>
+              </div>
+              <div className="hidden md:block">
+                <div className="text-muted-foreground">Расходы</div>
+                <div className="mt-1 tabular text-foreground">{formatRub(totals.monthExpenseTotal)}</div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-3">
             {(state.cashAccounts ?? []).map((account) => (
-              <div key={account.id} className="grid gap-3 rounded-lg border border-border bg-[color:var(--surface-elevated)]/40 p-3 md:grid-cols-[minmax(180px,1fr)_130px_150px_auto] md:items-center">
-                <input
-                  value={account.name}
-                  onChange={(event) => updateCashAccount(account.id, { name: event.target.value })}
-                  className="bg-transparent text-sm text-foreground outline-none"
-                />
-                <select
-                  value={account.kind}
-                  onChange={(event) => updateCashAccount(account.id, { kind: event.target.value as CashAccountKind })}
-                  className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
-                >
-                  {Object.entries(accountKindLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
-                <button
-                  onClick={() => removeCashAccount(account.id)}
-                  className="inline-flex items-center justify-center rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+              <div key={account.id} className="rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <input
+                    value={account.name}
+                    onChange={(event) => updateCashAccount(account.id, { name: event.target.value })}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
+                  />
+                  <button
+                    onClick={() => removeCashAccount(account.id)}
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-[1fr_1.2fr] gap-2">
+                  <select
+                    value={account.kind}
+                    onChange={(event) => updateCashAccount(account.id, { kind: event.target.value as CashAccountKind })}
+                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
+                  >
+                    {Object.entries(accountKindLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
+                </div>
               </div>
             ))}
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(180px,1fr)_130px_auto]">
-            <input
-              value={newAccountName}
-              onChange={(event) => setNewAccountName(event.target.value)}
-              placeholder="Новый счет"
-              className="rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            <select
-              value={newAccountKind}
-              onChange={(event) => setNewAccountKind(event.target.value as CashAccountKind)}
-              className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
-            >
-              {Object.entries(accountKindLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <button
-              onClick={addAccount}
-              disabled={!newAccountName.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              Добавить
-            </button>
-          </div>
+          <details className="mt-3 rounded-lg border border-dashed border-border px-3 py-2">
+            <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">Добавить счет</summary>
+            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(160px,1fr)_130px_auto]">
+              <input
+                value={newAccountName}
+                onChange={(event) => setNewAccountName(event.target.value)}
+                placeholder="Новый счет"
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              />
+              <select
+                value={newAccountKind}
+                onChange={(event) => setNewAccountKind(event.target.value as CashAccountKind)}
+                className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+              >
+                {Object.entries(accountKindLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <button
+                onClick={addAccount}
+                disabled={!newAccountName.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Добавить
+              </button>
+            </div>
+          </details>
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-5">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
-              <Upload className="h-3.5 w-3.5" /> Выписка PDF
-            </div>
-            <div className="mt-1 font-display text-xl">Загрузка операций</div>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              PDF читается локально в браузере. Если формат банка не распознался, операции можно добавить руками.
-            </p>
+        <section className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
+            <Upload className="h-3.5 w-3.5" /> Выписка PDF
           </div>
-
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-[color:var(--surface-elevated)]/40 px-6 py-8 text-center transition-colors hover:border-[color:var(--gold)]/50">
-            <FileText className="h-8 w-8 text-[color:var(--gold)]" />
-            <span className="mt-3 text-sm text-foreground">Выбрать PDF-выписку</span>
-            <span className="mt-1 text-xs text-muted-foreground">Файл не отправляется на сервер</span>
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-[color:var(--surface-elevated)]/40 px-4 py-3 text-sm text-foreground transition-colors hover:border-[color:var(--gold)]/50">
+            <FileText className="h-4 w-4 text-[color:var(--gold)]" />
+            Загрузить выписку
             <input
               type="file"
               accept="application/pdf,.pdf"
@@ -316,26 +326,50 @@ function BudgetPage() {
               onChange={(event) => void handlePdfUpload(event.target.files?.[0])}
             />
           </label>
-
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">Файл читается локально и не отправляется на сервер.</p>
           {importMessage ? (
-            <div className="mt-4 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground">{importMessage}</div>
+            <div className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">{importMessage}</div>
           ) : null}
         </section>
       </div>
 
-      <div className="mb-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Операции</div>
-              <div className="mt-1 font-display text-xl">Ручная корректировка</div>
-            </div>
-            <div className="text-right text-xs text-muted-foreground">
-              Доходы за месяц: <span className="text-foreground">{formatRub(totals.monthIncomeTotal)}</span>
-            </div>
+      <section className="mb-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Факт за месяц</div>
+            <div className="mt-1 font-display text-xl">Расходы по статьям</div>
           </div>
+          <div className="text-right text-xs text-muted-foreground">
+            Доходы: <span className="text-foreground">{formatRub(totals.monthIncomeTotal)}</span>
+          </div>
+        </div>
 
-          <div className="grid gap-3 lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto] lg:items-end">
+        {expenseByCategory.length ? (
+          <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+            {expenseByCategory.map((row) => {
+              const width = Math.max(4, (row.total / maxCategoryTotal) * 100);
+              return (
+                <div key={row.category.id}>
+                  <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                    <span className="text-foreground">{row.category.name}</span>
+                    <span className="tabular text-muted-foreground">{formatRub(row.total)}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
+                    <div className="h-full rounded-full" style={{ width: `${width}%`, background: "var(--gradient-gold)" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            За текущий месяц расходов пока нет.
+          </div>
+        )}
+
+        <details className="mt-5 rounded-lg border border-dashed border-border px-3 py-2">
+          <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">Добавить расход или доход вручную</summary>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto] lg:items-end">
             <label>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Дата</span>
               <input
@@ -376,7 +410,7 @@ function BudgetPage() {
               />
             </label>
             <label>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Категория</span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Статья</span>
               <select
                 value={draft.categoryId}
                 onChange={(event) => setDraft((value) => ({ ...value, categoryId: event.target.value }))}
@@ -396,82 +430,55 @@ function BudgetPage() {
               Добавить
             </button>
           </div>
-        </section>
+        </details>
+      </section>
 
-        <section className="space-y-6">
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="mb-5">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Категории</div>
-              <div className="mt-1 font-display text-xl">Расходы по статьям</div>
-            </div>
-
-            {expenseByCategory.length ? (
-              <div className="space-y-4">
-                {expenseByCategory.map((row) => {
-                  const width = Math.max(4, (row.total / maxCategoryTotal) * 100);
-                  return (
-                    <div key={row.category.id}>
-                      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                        <span className="text-foreground">{row.category.name}</span>
-                        <span className="tabular text-muted-foreground">{formatRub(row.total)}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
-                        <div className="h-full rounded-full" style={{ width: `${width}%`, background: "var(--gradient-gold)" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                За текущий месяц расходов пока нет.
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="mb-4">
+      <details className="rounded-xl border border-border bg-card p-5">
+        <summary className="cursor-pointer list-none">
+          <div className="flex items-center justify-between gap-4">
+            <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Справочник</div>
               <div className="mt-1 font-display text-xl">Статьи расходов</div>
             </div>
+            <div className="text-xs text-muted-foreground">Раскрыть</div>
+          </div>
+        </summary>
 
-            <div className="space-y-2">
-              {categories.map((category) => (
-                <div key={category.id} className="flex items-center gap-2 rounded-md border border-border bg-[color:var(--surface-elevated)]/40 p-2">
-                  <input
-                    value={category.name}
-                    onChange={(event) => updateTransactionCategory(category.id, { name: event.target.value })}
-                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
-                  />
-                  <button
-                    onClick={() => removeTransactionCategory(category.id)}
-                    className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 grid gap-2 md:grid-cols-[minmax(160px,1fr)_auto]">
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          {categories.map((category) => (
+            <div key={category.id} className="flex items-center gap-2 rounded-md border border-border bg-[color:var(--surface-elevated)]/40 p-2">
               <input
-                value={newCategoryName}
-                onChange={(event) => setNewCategoryName(event.target.value)}
-                placeholder="Новая статья"
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                value={category.name}
+                onChange={(event) => updateTransactionCategory(category.id, { name: event.target.value })}
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
               />
               <button
-                onClick={addCategory}
-                disabled={!newCategoryName.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => removeTransactionCategory(category.id)}
+                className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
-                <Plus className="h-4 w-4" />
-                Добавить
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
-          </div>
-        </section>
-      </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(160px,1fr)_auto]">
+          <input
+            value={newCategoryName}
+            onChange={(event) => setNewCategoryName(event.target.value)}
+            placeholder="Новая статья"
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            onClick={addCategory}
+            disabled={!newCategoryName.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить
+          </button>
+        </div>
+      </details>
     </PageContainer>
   );
 }
