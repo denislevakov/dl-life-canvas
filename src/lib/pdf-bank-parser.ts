@@ -1,4 +1,4 @@
-import type { MoneyTransaction, TransactionCategory } from "@/lib/capital-store";
+import { REVIEW_CATEGORY_ID, type MoneyTransaction, type TransactionCategory } from "@/lib/capital-store";
 
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?url";
@@ -73,12 +73,13 @@ const categoryForText = (text: string, categories: TransactionCategory[]) => {
   if (/фитнес|fitness|gym|спортзал|зал/.test(lower)) return find("cat_expense_e10", /фитнес|спортзал/);
   if (/клининг|cleaning|уборк/.test(lower)) return find("cat_expense_e11", /клининг|уборк/);
   if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return findById("cat_income") || findByName(/доход/);
-  return findById("cat_other") || findByName(/другое/) || (categories[0] ? categories[0].id : "") || "";
+  return findById(REVIEW_CATEGORY_ID) || (categories[0] ? categories[0].id : "") || "";
 };
 
 const isIncomeLine = (line: string, amountText: string) => {
   const lower = line.toLowerCase();
-  if (/зачисление|поступление|salary|зарплат|возврат|cashback|кэшбэк|перевод от|пополнение/.test(lower)) return true;
+  if (/перевод клиенту|перевод по номеру|перевод другому|перевод на|списание|выдача наличных/.test(lower)) return false;
+  if (/зачисление|поступление|salary|зарплат|возврат|cashback|кэшбэк|перевод от|внесение наличных|пополнение/.test(lower)) return true;
   return amountText.trim().charAt(0) === "+";
 };
 

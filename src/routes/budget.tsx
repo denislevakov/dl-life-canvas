@@ -4,7 +4,7 @@ import { FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
-import { useCapital, type CashAccountKind, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
+import { REVIEW_CATEGORY_ID, useCapital, type CashAccountKind, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
 import { formatMillions, formatRub } from "@/lib/format";
 
 type ParsedPdfResult = {
@@ -42,11 +42,16 @@ function BudgetPage() {
     removeExpense,
     addTransaction,
     importTransactions,
+    updateTransaction,
   } = useCapital();
 
   const categories = state.transactionCategories ?? [];
   const expenseCategories = useMemo(() => categories.filter((category) => category.id.startsWith("cat_expense_")), [categories]);
   const transactions = state.transactions ?? [];
+  const reviewTransactions = useMemo(
+    () => transactions.filter((transaction) => transaction.categoryId === REVIEW_CATEGORY_ID),
+    [transactions],
+  );
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newAccountName, setNewAccountName] = useState("");
@@ -234,7 +239,7 @@ function BudgetPage() {
               onChange={(event) => void handlePdfUpload(event.target.files?.[0])}
             />
           </label>
-          <div className="mt-4 text-xs leading-5 text-muted-foreground">файл читается локально</div>
+          <div className="mt-4 text-xs leading-5 text-muted-foreground">расходы меняют баланс карты / наличных</div>
         </section>
       </div>
 
@@ -395,6 +400,54 @@ function BudgetPage() {
             Доходы: <span className="text-foreground">{formatRub(totals.monthIncomeTotal)}</span>
           </div>
         </div>
+
+        {reviewTransactions.length ? (
+          <div className="mb-5 rounded-lg border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/5 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--gold)]">Нужно распределить</div>
+                <div className="mt-1 text-sm text-muted-foreground">Переводы и операции без понятной статьи</div>
+              </div>
+              <div className="text-sm tabular text-foreground">{reviewTransactions.length}</div>
+            </div>
+            <div className="grid gap-2">
+              {reviewTransactions.slice(0, 6).map((transaction) => (
+                <div key={transaction.id} className="grid gap-2 rounded-md border border-border bg-card/70 p-3 md:grid-cols-[1fr_130px_180px] md:items-center">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-foreground">{transaction.description}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {transaction.date} · {transaction.type === "income" ? "приход" : "расход"}
+                    </div>
+                  </div>
+                  <div className="text-sm tabular text-muted-foreground md:text-right">{formatRub(transaction.amount)}</div>
+                  <select
+                    value={transaction.categoryId}
+                    onChange={(event) =>
+                      updateTransaction(transaction.id, {
+                        categoryId: event.target.value,
+                        type: event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
+                      })
+                    }
+                    className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                  >
+                    <option value={REVIEW_CATEGORY_ID}>Нужно распределить</option>
+                    {categories
+                      .filter((category) => category.id === "cat_income")
+                      .map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                    {expenseCategories.map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+            {reviewTransactions.length > 6 ? (
+              <div className="mt-3 text-xs text-muted-foreground">Еще {reviewTransactions.length - 6} операций появятся после распределения верхних.</div>
+            ) : null}
+          </div>
+        ) : null}
 
         {expenseByCategory.length ? (
           <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">

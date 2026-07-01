@@ -163,12 +163,15 @@ const defaultExpenses: Expense[] = [
   { id: "e11", name: "Клининг", amount: 7_000 },
 ];
 
+export const REVIEW_CATEGORY_ID = "cat_review";
+const REVIEW_CATEGORY_NAME = "Нужно распределить";
+
 const transactionCategoryIdForExpense = (expenseId: string) => `cat_expense_${expenseId}`;
 
 const transactionCategoriesForExpenses = (expenses: Expense[]): TransactionCategory[] => [
   ...expenses.map((expense) => ({ id: transactionCategoryIdForExpense(expense.id), name: expense.name })),
   { id: "cat_income", name: "Доход" },
-  { id: "cat_other", name: "Другое" },
+  { id: REVIEW_CATEGORY_ID, name: REVIEW_CATEGORY_NAME },
 ];
 
 const defaultTransactionCategories = transactionCategoriesForExpenses(defaultExpenses);
@@ -187,14 +190,14 @@ const legacyTransactionCategoryIds = [
 
 const legacyTransactionCategoryMap: Record<string, string> = {
   cat_food: transactionCategoryIdForExpense("e3"),
-  cat_home: "cat_other",
-  cat_transport: "cat_other",
-  cat_health: "cat_other",
+  cat_home: REVIEW_CATEGORY_ID,
+  cat_transport: REVIEW_CATEGORY_ID,
+  cat_health: REVIEW_CATEGORY_ID,
   cat_family: transactionCategoryIdForExpense("e8"),
   cat_subscriptions: transactionCategoryIdForExpense("e7"),
-  cat_travel: "cat_other",
+  cat_travel: REVIEW_CATEGORY_ID,
   cat_income: "cat_income",
-  cat_other: "cat_other",
+  cat_other: REVIEW_CATEGORY_ID,
 };
 
 const normalizeCategoryName = (name: string) => name.trim().toLowerCase();
@@ -216,7 +219,7 @@ const syncTransactionCategoriesWithExpenses = (state: CapitalState): CapitalStat
     ...state,
     transactionCategories: nextCategories,
     transactions: (state.transactions ?? []).map((transaction) => {
-      const categoryId = remap[transaction.categoryId] ?? (nextIds.has(transaction.categoryId) ? transaction.categoryId : "cat_other");
+      const categoryId = remap[transaction.categoryId] ?? (nextIds.has(transaction.categoryId) ? transaction.categoryId : REVIEW_CATEGORY_ID);
       return categoryId === transaction.categoryId ? transaction : { ...transaction, categoryId };
     }),
   };
@@ -648,7 +651,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     commit((s) => {
       const categories = s.transactionCategories ?? [];
       const cur = categories.find((category) => category.id === id);
-      const fallback = (s.transactionCategories ?? []).find((category) => category.id === "cat_other")?.id ?? "";
+      const fallback = (s.transactionCategories ?? []).find((category) => category.id === REVIEW_CATEGORY_ID)?.id ?? "";
       return pushLog(
         {
           ...s,
@@ -674,9 +677,36 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const existing = new Set((s.transactions ?? []).map((transaction) => `${transaction.date}|${transaction.amount}|${transaction.description}`));
       const fresh = transactions.filter((transaction) => !existing.has(`${transaction.date}|${transaction.amount}|${transaction.description}`));
       if (!fresh.length) return s;
+      const balanceDelta = fresh.reduce(
+        (sum, transaction) => sum + (transaction.type === "income" ? transaction.amount : -transaction.amount),
+        0,
+      );
+      const accounts = s.cashAccounts ?? [];
+      const accountIndex = accounts.findIndex((account) => account.kind === "card" || account.kind === "cash");
+      const nextAccounts =
+        accountIndex >= 0
+          ? accounts.map((account, index) =>
+              index === accountIndex ? { ...account, balance: account.balance + balanceDelta } : account,
+            )
+          : [
+              ...accounts,
+              {
+                id: `ca_${Date.now()}`,
+                name: "Карта / наличные",
+                kind: "card" as const,
+                balance: balanceDelta,
+              },
+            ];
+      const freshWithAccount = fresh.map((transaction) => ({
+        ...transaction,
+        accountId: transaction.accountId ?? nextAccounts[accountIndex >= 0 ? accountIndex : nextAccounts.length - 1].id,
+      }));
       return pushLog(
-        { ...s, transactions: [...fresh, ...(s.transactions ?? [])] },
-        [{ scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` }],
+        { ...s, cashAccounts: nextAccounts, transactions: [...freshWithAccount, ...(s.transactions ?? [])] },
+        [
+          { scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` },
+          { scope: "cash_account", action: "update", entityName: "Карта / наличные", field: "balance", after: balanceDelta },
+        ],
       );
     });
   const updateTransaction = (id: string, patch: Partial<MoneyTransaction>) =>
@@ -778,7 +808,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const monthKey = new Date().toISOString().slice(0, 7);
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
   const monthExpenseTotal = monthTransactions.filter((transaction) => transaction.type === "expense").reduce((s, transaction) => s + transaction.amount, 0);
-  const monthIncomeTotal = monthTransactions.filter((transaction) => transaction.type === "income").reduce((s, transaction) => s + transaction.amount, 0);
+  const monthIncomeTotal = monthTransactions
+    .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
+    .reduce((s, transaction) => s + transaction.amount, 0);
 
   return (
     <CapitalContext.Provider
