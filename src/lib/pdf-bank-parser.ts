@@ -3,7 +3,8 @@ import type { MoneyTransaction, TransactionCategory } from "@/lib/capital-store"
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?url";
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+pdfjs.GlobalWorkerOptions.workerSrc =
+  typeof window === "undefined" ? "pdfjs-dist/legacy/build/pdf.worker.mjs" : pdfWorker;
 
 interface ParsedPdfResult {
   transactions: MoneyTransaction[];
