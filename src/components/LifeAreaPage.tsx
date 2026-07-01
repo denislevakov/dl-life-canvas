@@ -337,60 +337,66 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                           key={action.id}
                           onPointerEnter={() => reorderActionOnEnter(area, action.id)}
                           className={
-                            "grid gap-2 rounded-lg border border-border bg-background/55 p-3 transition-opacity md:grid-cols-[32px_minmax(180px,1fr)_140px_120px_36px] md:items-center " +
+                            "rounded-lg border border-border bg-background/55 p-3 transition-opacity " +
                             (draggedAction?.actionId === action.id ? "opacity-50" : "")
                           }
                         >
-                          <div
-                            onPointerDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              setDraggedAction({ areaId: area.id, actionId: action.id });
-                            }}
-                            className="inline-flex h-9 w-9 cursor-grab touch-none select-none items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
-                            title="Перетащить действие"
-                          >
-                            <GripVertical className="h-4 w-4" />
+                          <div className="grid gap-2 sm:grid-cols-[40px_minmax(0,1fr)_40px] sm:items-center">
+                            <div
+                              onPointerDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setDraggedAction({ areaId: area.id, actionId: action.id });
+                              }}
+                              className="inline-flex h-10 w-10 cursor-grab touch-none select-none items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
+                              title="Перетащить действие"
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </div>
+                            <input
+                              value={action.title}
+                              onChange={(event) => updateAction(area, action.id, { title: event.target.value })}
+                              className="min-w-0 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+                            />
+                            <button
+                              onClick={() => removeAction(area, action.id)}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                              aria-label="Удалить действие"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
-                          <input
-                            value={action.title}
-                            onChange={(event) => updateAction(area, action.id, { title: event.target.value })}
-                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm text-foreground outline-none"
-                          />
-                          <input
-                            type="date"
-                            value={action.deadline}
-                            onChange={(event) => updateAction(area, action.id, { deadline: event.target.value })}
-                            className="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none"
-                          />
-                          <button
-                            onClick={() =>
-                              updateAction(area, action.id, {
-                                status: action.status === "done" ? "active" : "done",
-                              })
-                            }
-                            className={
-                              "inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-xs transition-colors " +
-                              (action.status === "done"
-                                ? "border-[color:oklch(0.4_0.06_160)] bg-[color:oklch(0.3_0.06_160)] text-[color:oklch(0.85_0.1_160)]"
-                                : "border-border text-muted-foreground hover:text-foreground")
-                            }
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            {action.status === "done" ? "Готово" : "В работе"}
-                          </button>
-                          <button
-                            onClick={() => removeAction(area, action.id)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-                            aria-label="Удалить действие"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[160px_140px]">
+                            <input
+                              type="date"
+                              value={action.deadline}
+                              onChange={(event) => updateAction(area, action.id, { deadline: event.target.value })}
+                              className="h-10 min-w-0 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none"
+                            />
+                            <button
+                              onClick={() =>
+                                updateAction(area, action.id, {
+                                  status: action.status === "done" ? "active" : "done",
+                                })
+                              }
+                              className={
+                                "inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-md border px-3 text-xs transition-colors " +
+                                (action.status === "done"
+                                  ? "border-[color:oklch(0.4_0.06_160)] bg-[color:oklch(0.3_0.06_160)] text-[color:oklch(0.85_0.1_160)]"
+                                  : "border-border text-muted-foreground hover:text-foreground")
+                              }
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {action.status === "done" ? "Готово" : "В работе"}
+                            </button>
+                          </div>
+
                           <textarea
                             value={action.note}
                             onChange={(event) => updateAction(area, action.id, { note: event.target.value })}
                             placeholder="Комментарий"
-                            className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-2 py-2 text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground md:col-span-5"
+                            className="mt-2 min-h-24 min-w-0 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-muted-foreground outline-none placeholder:text-muted-foreground"
                           />
                         </div>
                       ))}
