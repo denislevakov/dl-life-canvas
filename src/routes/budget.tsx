@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
@@ -37,12 +37,10 @@ function BudgetPage() {
     removeExpense,
     addTransaction,
     importTransactions,
-    addTransactionCategory,
-    updateTransactionCategory,
-    removeTransactionCategory,
   } = useCapital();
 
   const categories = state.transactionCategories ?? [];
+  const expenseCategories = useMemo(() => categories.filter((category) => category.id.startsWith("cat_expense_")), [categories]);
   const transactions = state.transactions ?? [];
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -133,11 +131,21 @@ function BudgetPage() {
   const addCategory = () => {
     const name = newCategoryName.trim();
     if (!name) return;
-    const category = { id: `cat_${Date.now()}`, name };
-    addTransactionCategory(category);
-    setDraft((value) => ({ ...value, categoryId: category.id }));
+    const expense = { id: `e${Date.now()}`, name, amount: 0 };
+    addExpense(expense);
+    setDraft((value) => ({ ...value, categoryId: `cat_expense_${expense.id}` }));
     setNewCategoryName("");
   };
+
+  const manualCategoryOptions = useMemo(
+    () => (draft.type === "income" ? categories.filter((category) => category.id === "cat_income") : expenseCategories),
+    [categories, draft.type, expenseCategories],
+  );
+
+  useEffect(() => {
+    if (!manualCategoryOptions.length || manualCategoryOptions.some((category) => category.id === draft.categoryId)) return;
+    setDraft((value) => ({ ...value, categoryId: manualCategoryOptions[0]?.id ?? "" }));
+  }, [draft.categoryId, manualCategoryOptions]);
 
   const addAccount = () => {
     const name = newAccountName.trim();
@@ -442,7 +450,7 @@ function BudgetPage() {
                 onChange={(event) => setDraft((value) => ({ ...value, categoryId: event.target.value }))}
                 className="mt-2 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
               >
-                {categories.map((category) => (
+                {manualCategoryOptions.map((category) => (
                   <option key={category.id} value={category.id}>{category.name}</option>
                 ))}
               </select>
@@ -471,15 +479,15 @@ function BudgetPage() {
         </summary>
 
         <div className="mt-4 grid gap-2 md:grid-cols-2">
-          {categories.map((category) => (
-            <div key={category.id} className="flex items-center gap-2 rounded-md border border-border bg-[color:var(--surface-elevated)]/40 p-2">
+          {state.expenses.map((expense) => (
+            <div key={expense.id} className="flex items-center gap-2 rounded-md border border-border bg-[color:var(--surface-elevated)]/40 p-2">
               <input
-                value={category.name}
-                onChange={(event) => updateTransactionCategory(category.id, { name: event.target.value })}
+                value={expense.name}
+                onChange={(event) => updateExpense(expense.id, { name: event.target.value })}
                 className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
               />
               <button
-                onClick={() => removeTransactionCategory(category.id)}
+                onClick={() => removeExpense(expense.id)}
                 className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3.5 w-3.5" />

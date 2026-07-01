@@ -165,11 +165,13 @@ const defaultExpenses: Expense[] = [
 
 const transactionCategoryIdForExpense = (expenseId: string) => `cat_expense_${expenseId}`;
 
-const defaultTransactionCategories: TransactionCategory[] = [
-  ...defaultExpenses.map((expense) => ({ id: transactionCategoryIdForExpense(expense.id), name: expense.name })),
+const transactionCategoriesForExpenses = (expenses: Expense[]): TransactionCategory[] => [
+  ...expenses.map((expense) => ({ id: transactionCategoryIdForExpense(expense.id), name: expense.name })),
   { id: "cat_income", name: "Доход" },
   { id: "cat_other", name: "Другое" },
 ];
+
+const defaultTransactionCategories = transactionCategoriesForExpenses(defaultExpenses);
 
 const legacyTransactionCategoryIds = [
   "cat_food",
@@ -197,32 +199,27 @@ const legacyTransactionCategoryMap: Record<string, string> = {
 
 const normalizeCategoryName = (name: string) => name.trim().toLowerCase();
 
-const isLegacyDefaultTransactionCategories = (categories: TransactionCategory[]) =>
-  categories.length === legacyTransactionCategoryIds.length &&
-  legacyTransactionCategoryIds.every((id) => categories.some((category) => category.id === id));
-
-const withDefaultTransactionCategories = (state: CapitalState): CapitalState => {
+const syncTransactionCategoriesWithExpenses = (state: CapitalState): CapitalState => {
   const categories = state.transactionCategories ?? [];
-  if (!categories.length || isLegacyDefaultTransactionCategories(categories)) {
-    return {
-      ...state,
-      transactionCategories: defaultTransactionCategories,
-      transactions: (state.transactions ?? []).map((transaction) => ({
-        ...transaction,
-        categoryId: legacyTransactionCategoryMap[transaction.categoryId] ?? transaction.categoryId,
-      })),
-    };
-  }
+  const nextCategories = transactionCategoriesForExpenses(state.expenses ?? []);
+  const nextIds = new Set(nextCategories.map((category) => category.id));
+  const remap: Record<string, string> = { ...legacyTransactionCategoryMap };
 
-  const seen = new Set<string>();
-  const mergedCategories = [...defaultTransactionCategories, ...categories].filter((category) => {
-    const key = `${category.id}:${normalizeCategoryName(category.name)}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  categories.forEach((category) => {
+    const categoryId = category.id;
+    if (nextIds.has(categoryId) || remap[categoryId]) return;
+    const match = nextCategories.find((nextCategory) => normalizeCategoryName(nextCategory.name) === normalizeCategoryName(category.name));
+    if (match) remap[categoryId] = match.id;
   });
 
-  return { ...state, transactionCategories: mergedCategories };
+  return {
+    ...state,
+    transactionCategories: nextCategories,
+    transactions: (state.transactions ?? []).map((transaction) => {
+      const categoryId = remap[transaction.categoryId] ?? (nextIds.has(transaction.categoryId) ? transaction.categoryId : "cat_other");
+      return categoryId === transaction.categoryId ? transaction : { ...transaction, categoryId };
+    }),
+  };
 };
 const DESC_VERSION_KEY = "life-capital-desc-version";
 
@@ -460,7 +457,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
             merged.minIncome = defaultState.minIncome;
           }
-          merged = withDefaultTransactionCategories(merged);
+          merged = syncTransactionCategoriesWithExpenses(merged);
 
           // Patch target copy from current defaults when copy version changes,
           // so users get updated names/descriptions without losing numbers.
@@ -586,15 +583,23 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const cur = s.expenses.find((e) => e.id === id);
       if (!cur) return s;
       const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
-      const next = { ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) };
+      const next = syncTransactionCategoriesWithExpenses({ ...s, expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
       return pushLog(next, diffs.map((d) => ({ scope: "expense", action: "update", entityId: id, entityName: cur.name, ...d })));
     });
   const addExpense = (e: Expense) =>
-    commit((s) => pushLog({ ...s, expenses: [...s.expenses, e] }, [{ scope: "expense", action: "add", entityId: e.id, entityName: e.name }]));
+    commit((s) =>
+      pushLog(
+        syncTransactionCategoriesWithExpenses({ ...s, expenses: [...s.expenses, e] }),
+        [{ scope: "expense", action: "add", entityId: e.id, entityName: e.name }],
+      ),
+    );
   const removeExpense = (id: string) =>
     commit((s) => {
       const cur = s.expenses.find((e) => e.id === id);
-      return pushLog({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }, [{ scope: "expense", action: "remove", entityId: id, entityName: cur?.name }]);
+      return pushLog(
+        syncTransactionCategoriesWithExpenses({ ...s, expenses: s.expenses.filter((e) => e.id !== id) }),
+        [{ scope: "expense", action: "remove", entityId: id, entityName: cur?.name }],
+      );
     });
 
   const updateCashAccount = (id: string, patch: Partial<CashAccount>) =>
