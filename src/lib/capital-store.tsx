@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 export type AssetType = "real_estate" | "collection" | "vehicle" | "cash" | "other";
 export type AssetStatus = "owned" | "idea" | "planned" | "in_progress" | "purchased";
@@ -482,6 +484,48 @@ const defaultState: CapitalState = {
   changeLog: [],
 };
 
+const arrayStateKeys = [
+  "assets",
+  "targets",
+  "lifeGoals",
+  "lifeAreas",
+  "expenses",
+  "cashAccounts",
+  "transactionCategories",
+  "transactions",
+  "incomeSources",
+  "stages",
+  "incomeScenarios",
+  "changeLog",
+] as const;
+
+const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined): CapitalState => {
+  let merged = { ...defaultState, ...(saved ?? {}) } as CapitalState;
+
+  for (const key of arrayStateKeys) {
+    if (!Array.isArray(merged[key])) {
+      merged = { ...merged, [key]: defaultState[key] };
+    }
+  }
+
+  if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
+    merged.minIncome = defaultState.minIncome;
+  }
+  if (!merged.freedomTarget || typeof merged.freedomTarget.min !== "number" || typeof merged.freedomTarget.max !== "number") {
+    merged.freedomTarget = defaultState.freedomTarget;
+  }
+  if (typeof merged.currentStageId !== "string") {
+    merged.currentStageId = defaultState.currentStageId;
+  }
+
+  return syncTransactionCategoriesWithExpenses(merged);
+};
+
+const stateFingerprint = (state: CapitalState) => JSON.stringify({ ...state, changeLog: [] });
+
+const isDefaultLikeCapitalState = (state: CapitalState) =>
+  stateFingerprint(normalizeCapitalState(state)) === stateFingerprint(normalizeCapitalState(defaultState));
+
 const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
   if (typeof window === "undefined") return null;
   try {
@@ -543,7 +587,15 @@ interface Ctx {
 const CapitalContext = createContext<Ctx | null>(null);
 
 export function CapitalProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [state, setState] = useState<CapitalState>(defaultState);
+  const [localReady, setLocalReady] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Load saved state once on mount (client only). Older storage keys are
   // intentionally ignored so stale published values cannot override the
@@ -592,15 +644,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           const isPristine = JSON.stringify(cur) === JSON.stringify(defaultState);
           if (!isPristine) return cur;
 
-          let merged = { ...defaultState, ...saved } as CapitalState;
-          // Guard numeric scalars: stale saves may store null/0/undefined which
-          // would visibly wipe the default after hydration.
-          if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
-            merged.minIncome = defaultState.minIncome;
-          }
-          if (!Array.isArray(merged.lifeAreas)) {
-            merged.lifeAreas = defaultState.lifeAreas;
-          }
+          let merged = normalizeCapitalState(saved);
           const storedLifeAreasVersion =
             typeof window !== "undefined" ? window.localStorage.getItem(LIFE_AREAS_VERSION_KEY) : null;
           if (storedLifeAreasVersion !== LIFE_AREAS_VERSION) {
@@ -613,7 +657,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
               }
             } catch {}
           }
-          merged = syncTransactionCategoriesWithExpenses(merged);
+          merged = normalizeCapitalState(merged);
 
           // Patch target copy from current defaults when copy version changes,
           // so users get updated names/descriptions without losing numbers.
@@ -660,9 +704,98 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           return merged;
         });
       }
-    } catch {}
+    } catch {
+    } finally {
+      setLocalReady(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!localReady || !user?.id || !supabase) {
+      setCloudReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCloudReady(false);
+
+    const loadCloudState = async () => {
+      const { data, error } = await supabase
+        .from("capital_states")
+        .select("state")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Unable to load cloud capital state", error);
+        setCloudReady(true);
+        return;
+      }
+
+      if (data?.state) {
+        const next = normalizeCapitalState(data.state as Partial<CapitalState>);
+        try {
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          }
+        } catch {}
+        setState(next);
+        setCloudReady(true);
+        return;
+      }
+
+      const localState = normalizeCapitalState(stateRef.current);
+      if (!isDefaultLikeCapitalState(localState)) {
+        const { error: upsertError } = await supabase
+          .from("capital_states")
+          .upsert(
+            {
+              user_id: user.id,
+              state: localState,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" },
+          );
+        if (upsertError) console.error("Unable to initialize cloud capital state", upsertError);
+      }
+
+      if (!cancelled) setCloudReady(true);
+    };
+
+    void loadCloudState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localReady, user?.id]);
+
+  useEffect(() => {
+    if (!cloudReady || !user?.id || !supabase) return;
+
+    const next = normalizeCapitalState(state);
+    if (isDefaultLikeCapitalState(next)) return;
+
+    const timer = window.setTimeout(() => {
+      void supabase
+        .from("capital_states")
+        .upsert(
+          {
+            user_id: user.id,
+            state: next,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        )
+        .then(({ error }) => {
+          if (error) console.error("Unable to save cloud capital state", error);
+        });
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [cloudReady, state, user?.id]);
 
   // Helper that updates React state AND writes localStorage in one shot,
   // using the freshly computed next state so we never persist a stale value.
@@ -948,6 +1081,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
       }
     } catch {}
+    if (supabase && user?.id) {
+      void supabase.from("capital_states").delete().eq("user_id", user.id);
+    }
     setState(defaultState);
   };
 
