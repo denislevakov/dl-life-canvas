@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronDown, FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
@@ -46,6 +46,7 @@ function BudgetPage() {
   const transactions = state.transactions ?? [];
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [newAccountName, setNewAccountName] = useState("");
+  const [openExpenseRows, setOpenExpenseRows] = useState<string[]>([]);
   const [draft, setDraft] = useState({
     date: todayIso(),
     description: "",
@@ -69,14 +70,14 @@ function BudgetPage() {
   );
 
   const expenseByCategory = useMemo(() => {
-    const rows = new Map<string, { id: string; name: string; total: number; needsReview: boolean }>();
+    const rows = new Map<string, { id: string; name: string; total: number; needsReview: boolean; transactions: MoneyTransaction[] }>();
 
     currentMonthExpenses.forEach((transaction) => {
       const needsReview = transaction.categoryId === REVIEW_CATEGORY_ID || !categoryNameById.has(transaction.categoryId);
       const id = needsReview ? REVIEW_CATEGORY_ID : transaction.categoryId;
       const name = needsReview ? "Нужно распределить" : (categoryNameById.get(transaction.categoryId) ?? "Нужно распределить");
-      const current = rows.get(id) ?? { id, name, total: 0, needsReview };
-      rows.set(id, { ...current, total: current.total + transaction.amount });
+      const current = rows.get(id) ?? { id, name, total: 0, needsReview, transactions: [] };
+      rows.set(id, { ...current, total: current.total + transaction.amount, transactions: [...current.transactions, transaction] });
     });
 
     return Array.from(rows.values()).sort((a, b) => {
@@ -166,6 +167,9 @@ function BudgetPage() {
     addCashAccount({ id: `ca_${Date.now()}`, name, kind: "card", balance: 0 });
     setNewAccountName("");
   };
+
+  const toggleExpenseRow = (id: string) =>
+    setOpenExpenseRows((rows) => (rows.includes(id) ? rows.filter((rowId) => rowId !== id) : [...rows, id]));
 
   const clearCurrentMonthExpenses = () => {
     if (!currentMonthExpenses.length) return;
@@ -493,15 +497,60 @@ function BudgetPage() {
           <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
             {expenseByCategory.map((row) => {
               const width = Math.max(4, (row.total / maxCategoryTotal) * 100);
+              const isOpen = openExpenseRows.includes(row.id);
               return (
                 <div key={row.id}>
-                  <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpenseRow(row.id)}
+                    className="mb-1.5 flex w-full items-center justify-between gap-3 text-left text-sm"
+                    aria-expanded={isOpen}
+                  >
                     <span className={row.needsReview ? "text-[color:var(--gold)]" : "text-foreground"}>{row.name}</span>
-                    <span className="tabular text-muted-foreground">{formatRub(row.total)}</span>
-                  </div>
+                    <span className="inline-flex items-center gap-2 tabular text-muted-foreground">
+                      {formatRub(row.total)}
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </span>
+                  </button>
                   <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
                     <div className="h-full rounded-full" style={{ width: `${width}%`, background: row.needsReview ? "var(--gold)" : "var(--gradient-gold)" }} />
                   </div>
+                  {isOpen ? (
+                    <div className="mt-3 grid gap-2 rounded-lg border border-border bg-[color:var(--surface-elevated)]/20 p-2">
+                      {row.transactions.map((transaction) => (
+                        <div key={transaction.id} className="grid gap-2 rounded-md border border-border bg-card/70 p-2 text-xs md:grid-cols-[1fr_86px_120px_30px] md:items-center">
+                          <div className="min-w-0">
+                            <div className="truncate text-foreground">{transaction.description}</div>
+                            <div className="mt-1 text-muted-foreground">{transaction.date} · {transaction.source === "pdf" ? "PDF" : "вручную"}</div>
+                          </div>
+                          <div className="tabular text-muted-foreground md:text-right">{formatRub(transaction.amount)}</div>
+                          <select
+                            value={transaction.categoryId}
+                            onChange={(event) =>
+                              updateTransaction(transaction.id, {
+                                categoryId: event.target.value,
+                                type: event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
+                              })
+                            }
+                            className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
+                          >
+                            <option value={REVIEW_CATEGORY_ID}>Нужно распределить</option>
+                            {expenseCategories.map((category) => (
+                              <option key={category.id} value={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => removeTransaction(transaction.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Удалить операцию"
+                            title="Удалить операцию"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
