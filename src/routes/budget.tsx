@@ -41,12 +41,9 @@ function BudgetPage() {
   } = useCapital();
 
   const categories = state.transactionCategories ?? [];
+  const categoryNameById = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
   const expenseCategories = useMemo(() => categories.filter((category) => category.id.startsWith("cat_expense_")), [categories]);
   const transactions = state.transactions ?? [];
-  const reviewTransactions = useMemo(
-    () => transactions.filter((transaction) => transaction.categoryId === REVIEW_CATEGORY_ID),
-    [transactions],
-  );
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [isFactDataOpen, setIsFactDataOpen] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
@@ -63,22 +60,35 @@ function BudgetPage() {
     () => transactions.filter((transaction) => transaction.date.startsWith(currentMonthKey)),
     [currentMonthKey, transactions],
   );
+  const reviewTransactions = useMemo(
+    () => currentMonthTransactions.filter((transaction) => transaction.categoryId === REVIEW_CATEGORY_ID),
+    [currentMonthTransactions],
+  );
   const currentMonthExpenses = useMemo(
     () => currentMonthTransactions.filter((transaction) => transaction.type === "expense"),
     [currentMonthTransactions],
   );
 
   const expenseByCategory = useMemo(() => {
-    const rows = expenseCategories.map((category) => ({
-      category,
-      total: currentMonthExpenses
-        .filter((transaction) => transaction.categoryId === category.id)
-        .reduce((sum, transaction) => sum + transaction.amount, 0),
-    }));
-    return rows.filter((row) => row.total > 0).sort((a, b) => b.total - a.total);
-  }, [currentMonthExpenses, expenseCategories]);
+    const rows = new Map<string, { id: string; name: string; total: number; needsReview: boolean }>();
 
-  const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), 1);
+    currentMonthExpenses.forEach((transaction) => {
+      const needsReview = transaction.categoryId === REVIEW_CATEGORY_ID || !categoryNameById.has(transaction.categoryId);
+      const id = needsReview ? REVIEW_CATEGORY_ID : transaction.categoryId;
+      const name = needsReview ? "Нужно распределить" : (categoryNameById.get(transaction.categoryId) ?? "Нужно распределить");
+      const current = rows.get(id) ?? { id, name, total: 0, needsReview };
+      rows.set(id, { ...current, total: current.total + transaction.amount });
+    });
+
+    return Array.from(rows.values()).sort((a, b) => {
+      if (a.needsReview !== b.needsReview) return a.needsReview ? 1 : -1;
+      return b.total - a.total;
+    });
+  }, [categoryNameById, currentMonthExpenses]);
+
+  const displayedExpenseTotal = expenseByCategory.reduce((sum, row) => sum + row.total, 0);
+  const hiddenExpenseTotal = Math.max(0, totals.monthExpenseTotal - displayedExpenseTotal);
+  const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), hiddenExpenseTotal, 1);
   const monthlyMinimum = totals.monthlyMinimum;
   const scenarios = state.incomeScenarios.map((income) => {
     const surplus = income - monthlyMinimum;
@@ -498,17 +508,28 @@ function BudgetPage() {
             {expenseByCategory.map((row) => {
               const width = Math.max(4, (row.total / maxCategoryTotal) * 100);
               return (
-                <div key={row.category.id}>
+                <div key={row.id}>
                   <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                    <span className="text-foreground">{row.category.name}</span>
+                    <span className={row.needsReview ? "text-[color:var(--gold)]" : "text-foreground"}>{row.name}</span>
                     <span className="tabular text-muted-foreground">{formatRub(row.total)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
-                    <div className="h-full rounded-full" style={{ width: `${width}%`, background: "var(--gradient-gold)" }} />
+                    <div className="h-full rounded-full" style={{ width: `${width}%`, background: row.needsReview ? "var(--gold)" : "var(--gradient-gold)" }} />
                   </div>
                 </div>
               );
             })}
+            {hiddenExpenseTotal > 0 ? (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                  <span className="text-[color:var(--gold)]">Не показано в строках</span>
+                  <span className="tabular text-muted-foreground">{formatRub(hiddenExpenseTotal)}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
+                  <div className="h-full rounded-full bg-[color:var(--gold)]" style={{ width: `${Math.max(4, (hiddenExpenseTotal / maxCategoryTotal) * 100)}%` }} />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
