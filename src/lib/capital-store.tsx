@@ -601,6 +601,8 @@ interface Ctx {
   updateTransaction: (id: string, patch: Partial<MoneyTransaction>) => void;
   removeTransaction: (id: string) => void;
   updateTarget: (id: string, patch: Partial<TargetAsset>) => void;
+  addTarget: (target: TargetAsset) => void;
+  removeTarget: (id: string) => void;
   addLifeGoal: (goal: LifeGoal) => void;
   updateLifeGoal: (id: string, patch: Partial<LifeGoal>) => void;
   removeLifeGoal: (id: string) => void;
@@ -1056,6 +1058,21 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const next = { ...s, targets: s.targets.map((t) => (t.id === id ? { ...t, ...patch } : t)) };
       return pushLog(next, diffs.map((d) => ({ scope: "target", action: "update", entityId: id, entityName: cur.name, ...d })));
     });
+  const addTarget = (target: TargetAsset) =>
+    commit((s) =>
+      pushLog(
+        { ...s, targets: [...s.targets, target] },
+        [{ scope: "target", action: "add", entityId: target.id, entityName: target.name }],
+      ),
+    );
+  const removeTarget = (id: string) =>
+    commit((s) => {
+      const cur = s.targets.find((target) => target.id === id);
+      return pushLog(
+        { ...s, targets: s.targets.filter((target) => target.id !== id) },
+        [{ scope: "target", action: "remove", entityId: id, entityName: cur?.name }],
+      );
+    });
 
   const addLifeGoal = (goal: LifeGoal) =>
     commit((s) =>
@@ -1188,6 +1205,8 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         updateTransaction,
         removeTransaction,
         updateTarget,
+        addTarget,
+        removeTarget,
         addLifeGoal,
         updateLifeGoal,
         removeLifeGoal,
