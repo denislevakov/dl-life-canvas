@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Plus, Trash2, Upload } from "lucide-react";
+import { Database, FileText, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
-import { REVIEW_CATEGORY_ID, useCapital, type CashAccountKind, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
+import { REVIEW_CATEGORY_ID, useCapital, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
 import { formatMillions, formatRub } from "@/lib/format";
 
 type ParsedPdfResult = {
@@ -21,12 +21,6 @@ export const Route = createFileRoute("/budget")({
   }),
   component: BudgetPage,
 });
-
-const accountKindLabels: Record<CashAccountKind, string> = {
-  card: "Карта",
-  cash: "Наличные",
-  safety: "Подушка",
-};
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -54,9 +48,8 @@ function BudgetPage() {
     [transactions],
   );
   const [importMessage, setImportMessage] = useState<string | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isFactDataOpen, setIsFactDataOpen] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
-  const [newAccountKind, setNewAccountKind] = useState<CashAccountKind>("card");
   const [draft, setDraft] = useState({
     date: todayIso(),
     description: "",
@@ -65,16 +58,25 @@ function BudgetPage() {
     categoryId: categories[0]?.id ?? categories.find((category) => category.id === "cat_other")?.id ?? "",
   });
 
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const currentMonthTransactions = useMemo(
+    () => transactions.filter((transaction) => transaction.date.startsWith(currentMonthKey)),
+    [currentMonthKey, transactions],
+  );
+  const currentMonthExpenses = useMemo(
+    () => currentMonthTransactions.filter((transaction) => transaction.type === "expense"),
+    [currentMonthTransactions],
+  );
+
   const expenseByCategory = useMemo(() => {
-    const monthKey = new Date().toISOString().slice(0, 7);
     const rows = expenseCategories.map((category) => ({
       category,
-      total: transactions
-        .filter((transaction) => transaction.type === "expense" && transaction.categoryId === category.id && transaction.date.startsWith(monthKey))
+      total: currentMonthExpenses
+        .filter((transaction) => transaction.categoryId === category.id)
         .reduce((sum, transaction) => sum + transaction.amount, 0),
     }));
     return rows.filter((row) => row.total > 0).sort((a, b) => b.total - a.total);
-  }, [expenseCategories, transactions]);
+  }, [currentMonthExpenses, expenseCategories]);
 
   const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), 1);
   const monthlyMinimum = totals.monthlyMinimum;
@@ -139,15 +141,6 @@ function BudgetPage() {
     });
   };
 
-  const addCategory = () => {
-    const name = newCategoryName.trim();
-    if (!name) return;
-    const expense = { id: `e${Date.now()}`, name, amount: 0 };
-    addExpense(expense);
-    setDraft((value) => ({ ...value, categoryId: `cat_expense_${expense.id}` }));
-    setNewCategoryName("");
-  };
-
   const manualCategoryOptions = useMemo(
     () => (draft.type === "income" ? categories.filter((category) => category.id === "cat_income") : expenseCategories),
     [categories, draft.type, expenseCategories],
@@ -161,8 +154,16 @@ function BudgetPage() {
   const addAccount = () => {
     const name = newAccountName.trim();
     if (!name) return;
-    addCashAccount({ id: `ca_${Date.now()}`, name, kind: newAccountKind, balance: 0 });
+    addCashAccount({ id: `ca_${Date.now()}`, name, kind: "card", balance: 0 });
     setNewAccountName("");
+  };
+
+  const clearCurrentMonthExpenses = () => {
+    if (!currentMonthExpenses.length) return;
+    const confirmed = window.confirm("Удалить расходы текущего месяца? После этого можно заново загрузить выписку.");
+    if (!confirmed) return;
+    currentMonthExpenses.forEach((transaction) => removeTransaction(transaction.id));
+    setImportMessage("Расходы текущего месяца очищены. Можно заново загрузить выписку.");
   };
 
   const handlePdfUpload = async (file: File | undefined) => {
@@ -242,7 +243,11 @@ function BudgetPage() {
               type="file"
               accept="application/pdf,.pdf"
               className="hidden"
-              onChange={(event) => void handlePdfUpload(event.target.files?.[0])}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.currentTarget.value = "";
+                void handlePdfUpload(file);
+              }}
             />
           </label>
           <div className="mt-4 text-xs leading-5 text-muted-foreground">расходы меняют баланс карты / наличных</div>
@@ -275,46 +280,26 @@ function BudgetPage() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="grid grid-cols-[1fr_1.2fr] gap-2">
-                  <select
-                    value={account.kind}
-                    onChange={(event) => updateCashAccount(account.id, { kind: event.target.value as CashAccountKind })}
-                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
-                  >
-                    {Object.entries(accountKindLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
-                </div>
+                <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
               </div>
             ))}
           </div>
         ) : null}
 
-        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(160px,1fr)_130px_auto]">
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(180px,1fr)_auto]">
           <input
             value={newAccountName}
             onChange={(event) => setNewAccountName(event.target.value)}
             placeholder="Новый счет"
             className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <select
-            value={newAccountKind}
-            onChange={(event) => setNewAccountKind(event.target.value as CashAccountKind)}
-            className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
-          >
-            {Object.entries(accountKindLabels).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
           <button
             onClick={addAccount}
             disabled={!newAccountName.trim()}
             className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
-            Добавить
+            Добавить счет
           </button>
         </div>
       </details>
@@ -402,10 +387,55 @@ function BudgetPage() {
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Факт за месяц</div>
             <div className="mt-1 font-display text-xl">Расходы по статьям</div>
           </div>
-          <div className="text-right text-xs text-muted-foreground">
-            Расходы: <span className="text-foreground">{formatRub(totals.monthExpenseTotal)}</span>
+          <div className="flex items-start gap-3 text-right">
+            <div className="text-xs text-muted-foreground">
+              Расходы: <span className="text-foreground">{formatRub(totals.monthExpenseTotal)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFactDataOpen((value) => !value)}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-[color:var(--gold)]/50 hover:text-[color:var(--gold)]"
+              aria-expanded={isFactDataOpen}
+            >
+              <Database className="h-3.5 w-3.5" />
+              Данные
+            </button>
           </div>
         </div>
+
+        {isFactDataOpen ? (
+          <div className="mb-5 grid gap-3 rounded-lg border border-dashed border-border bg-[color:var(--surface-elevated)]/20 p-4 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <div className="text-sm text-foreground">Обновление факта за месяц</div>
+              <div className="mt-1 text-xs leading-5 text-muted-foreground">Можно очистить расходы текущего месяца и загрузить выписку заново.</div>
+            </div>
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)]">
+                <Upload className="h-4 w-4 text-[color:var(--gold)]" />
+                Загрузить PDF
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.currentTarget.value = "";
+                    void handlePdfUpload(file);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={clearCurrentMonthExpenses}
+                disabled={!currentMonthExpenses.length}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Очистить месяц
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {reviewTransactions.length ? (
           <div className="mb-5 rounded-lg border border-[color:var(--gold)]/30 bg-[color:var(--gold)]/5 p-4">
@@ -552,52 +582,6 @@ function BudgetPage() {
         </details>
       </section>
 
-      <details className="rounded-xl border border-border bg-card p-5">
-        <summary className="cursor-pointer list-none">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Справочник</div>
-              <div className="mt-1 font-display text-xl">Статьи расходов</div>
-            </div>
-            <div className="text-xs text-muted-foreground">Раскрыть</div>
-          </div>
-        </summary>
-
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
-          {state.expenses.map((expense) => (
-            <div key={expense.id} className="flex items-center gap-2 rounded-md border border-border bg-[color:var(--surface-elevated)]/40 p-2">
-              <input
-                value={expense.name}
-                onChange={(event) => updateExpense(expense.id, { name: event.target.value })}
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
-              />
-              <button
-                onClick={() => removeExpense(expense.id)}
-                className="rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(160px,1fr)_auto]">
-          <input
-            value={newCategoryName}
-            onChange={(event) => setNewCategoryName(event.target.value)}
-            placeholder="Новая статья"
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          />
-          <button
-            onClick={addCategory}
-            disabled={!newCategoryName.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Добавить
-          </button>
-        </div>
-      </details>
     </PageContainer>
   );
 }
