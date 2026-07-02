@@ -1,12 +1,14 @@
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { FormEvent, useState } from "react";
 
+import { ThemeToggle, useThemeMode } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth";
 
 type Mode = "signin" | "signup";
 
 export function AuthScreen() {
   const { configured, signIn, signUp } = useAuth();
+  const { theme, toggleTheme } = useThemeMode();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +41,10 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="fixed right-5 top-5 z-10">
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
+      </div>
       <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-5 py-10">
         <div className="grid w-full gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
           <section>
