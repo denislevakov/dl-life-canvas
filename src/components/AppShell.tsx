@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CapitalProvider, useCapital } from "@/lib/capital-store";
 import { useAuth } from "@/lib/auth";
 import {
@@ -20,7 +20,13 @@ import {
   Brain,
   Gamepad2,
   HeartPulse,
+  Moon,
+  Sun,
 } from "lucide-react";
+
+const THEME_STORAGE_KEY = "life-is-good-theme";
+
+type ThemeMode = "dark" | "light";
 
 const nav = [
   { to: "/", label: "Обзор", icon: LayoutDashboard },
@@ -36,6 +42,35 @@ const nav = [
   { to: "/life-map", label: "Карта жизни", icon: Map },
   { to: "/freedom", label: "Свобода", icon: Sparkles },
 ] as const;
+
+function ThemeToggle({
+  compact = false,
+  theme,
+  onToggle,
+}: {
+  compact?: boolean;
+  theme: ThemeMode;
+  onToggle: () => void;
+}) {
+  const isLight = theme === "light";
+  const Icon = isLight ? Moon : Sun;
+
+  return (
+    <button
+      onClick={onToggle}
+      className={
+        compact
+          ? "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+          : "flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)]/60 hover:text-foreground"
+      }
+      aria-label={isLight ? "Включить ночной режим" : "Включить дневной режим"}
+      title={isLight ? "Ночной режим" : "Дневной режим"}
+    >
+      <Icon className={compact ? "h-4 w-4" : "h-3.5 w-3.5"} />
+      {!compact ? <span>{isLight ? "Ночной режим" : "Дневной режим"}</span> : null}
+    </button>
+  );
+}
 
 function AccountPanel() {
   const { user, signOut } = useAuth();
@@ -104,7 +139,24 @@ function ResetButton() {
 export function AppShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState();
   const { signOut } = useAuth();
+  const [theme, setTheme] = useState<ThemeMode>("dark");
   const path = location.pathname;
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((current) => (current === "light" ? "dark" : "light"));
+  };
 
   return (
     <CapitalProvider>
@@ -147,8 +199,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="p-4 border-t border-border">
             <AccountPanel />
-            <div className="mt-4 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Этап</div>
-            <div className="mt-1 text-sm text-foreground">37–40 · Фундамент</div>
+            <div className="mt-4">
+              <ThemeToggle theme={theme} onToggle={toggleTheme} />
+            </div>
             <ResetButton />
           </div>
         </aside>
@@ -158,6 +211,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="font-display text-lg">Life Capital</div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">37–40</div>
+              <ThemeToggle compact theme={theme} onToggle={toggleTheme} />
               <button
                 onClick={() => void signOut()}
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
