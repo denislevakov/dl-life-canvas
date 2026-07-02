@@ -251,6 +251,51 @@ const syncTransactionCategoriesWithExpenses = (state: CapitalState): CapitalStat
     }),
   };
 };
+
+const normalizeTransactionDescription = (description: string) =>
+  description
+    .toLowerCase()
+    .replace(/[ё]/g, "е")
+    .replace(/[^a-zа-я0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const transactionAmountKey = (amount: number) => String(Math.round(Math.abs(amount) * 100));
+const transactionExactKey = (transaction: MoneyTransaction) =>
+  [
+    transaction.date,
+    transaction.type,
+    transactionAmountKey(transaction.amount),
+    normalizeTransactionDescription(transaction.description),
+  ].join("|");
+const transactionLooseKey = (transaction: MoneyTransaction) =>
+  [transaction.date, transaction.type, transactionAmountKey(transaction.amount)].join("|");
+
+const isReviewTransaction = (transaction: MoneyTransaction) => transaction.categoryId === REVIEW_CATEGORY_ID;
+
+const preferTransaction = (current: MoneyTransaction, candidate: MoneyTransaction) => {
+  if (isReviewTransaction(current) && !isReviewTransaction(candidate)) return candidate;
+  if (current.source === "pdf" && candidate.source === "manual") return candidate;
+  return current;
+};
+
+const descriptionsLikelyMatch = (a: MoneyTransaction, b: MoneyTransaction) => {
+  const left = normalizeTransactionDescription(a.description);
+  const right = normalizeTransactionDescription(b.description);
+  if (!left || !right) return true;
+  if (left === right) return true;
+  return left.includes(right) || right.includes(left);
+};
+
+const dedupeTransactions = (transactions: MoneyTransaction[]) => {
+  const byExact = new Map<string, MoneyTransaction>();
+  transactions.forEach((transaction) => {
+    const key = transactionExactKey(transaction);
+    const existing = byExact.get(key);
+    byExact.set(key, existing ? preferTransaction(existing, transaction) : transaction);
+  });
+  return Array.from(byExact.values());
+};
 const DESC_VERSION_KEY = "life-capital-desc-version";
 const LIFE_AREAS_VERSION_KEY = "life-capital-life-areas-version";
 
@@ -960,14 +1005,24 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const importTransactions = (transactions: MoneyTransaction[]) =>
     commit((s) => {
       if (!transactions.length) return s;
-      const keyFor = (transaction: MoneyTransaction) => `${transaction.date}|${transaction.amount}|${transaction.description}`;
-      const existingTransactions = s.transactions ?? [];
-      const existing = new Map(existingTransactions.map((transaction) => [keyFor(transaction), transaction]));
-      const fresh = transactions.filter((transaction) => !existing.has(keyFor(transaction)));
-      if (!fresh.length) return s;
+      const existingTransactions = dedupeTransactions(s.transactions ?? []);
+      const existingExact = new Map(existingTransactions.map((transaction) => [transactionExactKey(transaction), transaction]));
+      const existingLoose = new Map(existingTransactions.map((transaction) => [transactionLooseKey(transaction), transaction]));
+      const fresh: MoneyTransaction[] = [];
+
+      transactions.forEach((transaction) => {
+        const exactDuplicate = existingExact.get(transactionExactKey(transaction));
+        const looseDuplicate = existingLoose.get(transactionLooseKey(transaction));
+        if (exactDuplicate || (looseDuplicate && descriptionsLikelyMatch(looseDuplicate, transaction))) return;
+        fresh.push(transaction);
+        existingExact.set(transactionExactKey(transaction), transaction);
+        existingLoose.set(transactionLooseKey(transaction), transaction);
+      });
+
+      if (!fresh.length && existingTransactions.length === (s.transactions ?? []).length) return s;
       return pushLog(
         { ...s, transactions: [...fresh, ...existingTransactions] },
-        [{ scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` }],
+        fresh.length ? [{ scope: "transaction", action: "add", entityName: `Импортировано ${fresh.length}` }] : [],
       );
     });
   const updateTransaction = (id: string, patch: Partial<MoneyTransaction>) =>
@@ -1099,7 +1154,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const monthKey = new Date().toISOString().slice(0, 7);
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
   const monthExpenseTotal = monthTransactions
-    .filter((transaction) => transaction.type === "expense" && transaction.categoryId.startsWith("cat_expense_"))
+    .filter((transaction) => transaction.type === "expense")
     .reduce((s, transaction) => s + transaction.amount, 0);
   const monthIncomeTotal = monthTransactions
     .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
