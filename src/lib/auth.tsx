@@ -9,10 +9,6 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  accessLoading: boolean;
-  accessChecked: boolean;
-  approved: boolean;
-  accessError: string | null;
   configured: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
@@ -45,10 +41,6 @@ const humanizeAuthError = (message?: string) => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [accessLoading, setAccessLoading] = useState(false);
-  const [accessChecked, setAccessChecked] = useState(false);
-  const [approved, setApproved] = useState(false);
-  const [accessError, setAccessError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -75,57 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-
-  useEffect(() => {
-    if (!session || !supabase) {
-      setAccessLoading(false);
-      setAccessChecked(false);
-      setApproved(false);
-      setAccessError(null);
-      return;
-    }
-
-    let mounted = true;
-    const email = session.user.email?.trim().toLowerCase();
-    if (!email) {
-      setAccessLoading(false);
-      setAccessChecked(true);
-      setApproved(false);
-      setAccessError("У аккаунта нет email. Доступ невозможен.");
-      return;
-    }
-
-    setAccessLoading(true);
-    setAccessChecked(false);
-    setAccessError(null);
-
-    supabase
-      .from("approved_emails")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!mounted) return;
-        setApproved(Boolean(data?.email));
-        setAccessError(error ? "Не удалось проверить доступ. Попробуйте обновить страницу." : null);
-        setAccessChecked(true);
-        setAccessLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [session]);
-
   const value = useMemo<AuthContextValue>(
     () => ({
       user: session?.user ?? null,
       session,
       loading,
-      accessLoading,
-      accessChecked,
-      approved,
-      accessError,
       configured: isSupabaseConfigured,
       async signIn(email, password) {
         if (!supabase) return authUnavailable();
@@ -134,15 +80,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         openOverview();
         return { ok: true };
       },
-      async signUp() {
-        return { ok: false, message: "Регистрация закрыта. Доступ выдает владелец сайта после одобрения email." };
+      async signUp(email, password) {
+        if (!supabase) return authUnavailable();
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: typeof window === "undefined" ? undefined : window.location.origin,
+          },
+        });
+        if (error) return { ok: false, message: humanizeAuthError(error.message) };
+        if (!data.session) {
+          return { ok: true, message: "Регистрация создана. Проверьте почту и подтвердите email." };
+        }
+        openOverview();
+        return { ok: true };
       },
       async signOut() {
         if (!supabase) return;
         await supabase.auth.signOut();
       },
     }),
-    [accessChecked, accessError, accessLoading, approved, loading, session],
+    [loading, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -4,9 +4,12 @@ import { FormEvent, useState } from "react";
 import { ThemeToggle, useThemeMode } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth";
 
+type Mode = "signin" | "signup";
+
 export function AuthScreen() {
-  const { configured, signIn } = useAuth();
+  const { configured, signIn, signUp } = useAuth();
   const { theme, toggleTheme } = useThemeMode();
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -26,7 +29,7 @@ export function AuthScreen() {
 
     setSubmitting(true);
     try {
-      const result = await signIn(email.trim(), password);
+      const result = mode === "signin" ? await signIn(email.trim(), password) : await signUp(email.trim(), password);
       if (!result.ok) {
         setError(result.message);
         return;
@@ -55,7 +58,7 @@ export function AuthScreen() {
             <div className="mb-6">
               <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Аккаунт</div>
               <h2 className="mt-2 font-display text-2xl text-foreground">
-                Войти
+                {mode === "signin" ? "Войти" : "Создать доступ"}
               </h2>
             </div>
 
@@ -86,7 +89,7 @@ export function AuthScreen() {
                     <LockKeyhole className="h-4 w-4 text-muted-foreground" />
                     <input
                       type={showPassword ? "text" : "password"}
-                      autoComplete="current-password"
+                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -111,13 +114,24 @@ export function AuthScreen() {
                   disabled={submitting}
                   className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitting ? "Проверяю..." : "Войти"}
+                  {submitting ? "Проверяю..." : mode === "signin" ? "Войти" : "Зарегистрироваться"}
                 </button>
               </form>
             )}
 
-            <div className="mt-5 rounded-md border border-border bg-background/60 p-3 text-center text-sm text-muted-foreground">
-              Доступ только по одобренному email. Если аккаунта нет, владелец сайта должен добавить или пригласить пользователя в Supabase.
+            <div className="mt-5 text-center text-sm text-muted-foreground">
+              {mode === "signin" ? "Нет аккаунта?" : "Уже есть аккаунт?"}{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === "signin" ? "signup" : "signin");
+                  setError(null);
+                  setMessage(null);
+                }}
+                className="text-[color:var(--gold)] hover:underline"
+              >
+                {mode === "signin" ? "Создать" : "Войти"}
+              </button>
             </div>
           </section>
         </div>
