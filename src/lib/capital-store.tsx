@@ -168,7 +168,7 @@ const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 // or to clear stale demo values). After the wipe, the user's subsequent
 // edits persist normally — the token is stored alongside the data and
 // only triggers another reset if it changes again.
-const RESET_TOKEN = "2026-07-03-restore-assets-lifeareas";
+const RESET_TOKEN = "2026-07-03-restore-real-lifeareas";
 const RESET_TOKEN_KEY = "life-capital-reset-token";
 
 // Target copy update token. Bump this to push new default names/descriptions
