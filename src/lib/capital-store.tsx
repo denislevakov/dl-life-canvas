@@ -176,11 +176,6 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 const DESC_VERSION = "v8-target-copy";
 const LIFE_AREAS_VERSION = "v2-test-overview";
 
-export const isDemoMode = () => {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("demo") === "1";
-};
-
 const defaultExpenses: Expense[] = [
   { id: "e1", name: "Аренда квартиры", amount: 80_000 },
   { id: "e2", name: "Квартплата СПб", amount: 20_000 },
@@ -534,155 +529,6 @@ const defaultState: CapitalState = {
   changeLog: [],
 };
 
-
-
-const demoExpenses: Expense[] = [
-  { id: "de1", name: "Жилье", amount: 95_000 },
-  { id: "de2", name: "Продукты и кафе", amount: 65_000 },
-  { id: "de3", name: "Транспорт", amount: 18_000 },
-  { id: "de4", name: "Здоровье и спорт", amount: 24_000 },
-  { id: "de5", name: "Обучение", amount: 35_000 },
-  { id: "de6", name: "Подписки и сервисы", amount: 9_000 },
-  { id: "de7", name: "Путешествия", amount: 55_000 },
-];
-
-const demoTransactionCategories = transactionCategoriesForExpenses(demoExpenses);
-
-const demoState: CapitalState = {
-  assets: [
-    { id: "da1", name: "Инвестиционный портфель", type: "cash", min: 1_800_000, estimated: 2_050_000, max: 2_250_000, status: "owned" },
-    { id: "da2", name: "Коллекция предметов дизайна", type: "collection", min: 350_000, estimated: 520_000, max: 720_000, status: "owned", identity: true },
-    { id: "da3", name: "Рабочее оборудование", type: "other", min: 280_000, estimated: 360_000, max: 420_000, status: "owned" },
-  ],
-  targets: [
-    { id: "dt1", name: "Квартира для семьи", meaning: "Большое спокойное пространство с кабинетом, местом для гостей и хорошей инфраструктурой рядом.", horizon: "2027-2029", status: "planned", estimatedCost: 28_000_000, saved: 3_200_000, nextStep: "Собрать требования к району и первому взносу" },
-    { id: "dt2", name: "Мастерская и студия", meaning: "Личное место для проектов, записи, хранения коллекций и спокойной творческой работы.", horizon: "2028", status: "idea", estimatedCost: 4_500_000, saved: 450_000, nextStep: "Понять формат: аренда, покупка или отдельная комната" },
-    { id: "dt3", name: "Авто для путешествий", meaning: "Комфортные поездки на выходные, больше мобильности и свободы передвижения.", horizon: "2026", status: "in_progress", estimatedCost: 3_800_000, saved: 1_100_000, nextStep: "Сравнить 3 модели и стоимость владения" },
-  ],
-  lifeGoals: [
-    { id: "dg1", title: "Сделать ремонт в кабинете", period: "2026", deadline: "2026-09-30", progress: 0, status: "active", budget: 220_000, note: "Собрать референсы и смету" },
-    { id: "dg2", title: "Съездить в большое путешествие", period: "2026", deadline: "2026-11-15", progress: 0, status: "active", budget: 350_000, note: "Выбрать страну и даты" },
-    { id: "dg3", title: "Закрыть базовый курс по продукту", period: "2026", deadline: "2026-08-20", progress: 0, status: "active", budget: 60_000, note: "Выделить 2 вечера в неделю" },
-    { id: "dg4", title: "Идеи идей", period: "", deadline: "", progress: 0, status: "backlog", budget: 0, note: "Книжный клуб, новый спорт, семейный архив" },
-  ],
-  lifeAreas: [
-    {
-      id: "dla_project_1",
-      kind: "project",
-      title: "Личный дашборд",
-      description: "Система для целей, денег, проектов и личных решений без хаоса в заметках.",
-      horizon: "июль 2026",
-      status: "active",
-      actions: [
-        { id: "dla_project_1_1", title: "Подготовить демо для коллег", deadline: "2026-07-05", status: "active", note: "Показать подход без личных данных" },
-        { id: "dla_project_1_2", title: "Добавить сценарии расходов", deadline: "2026-07-12", status: "active", note: "Упростить еженедельный обзор" },
-      ],
-    },
-    {
-      id: "dla_project_2",
-      kind: "project",
-      title: "Медиа-проект",
-      description: "Серия коротких материалов про личную эффективность, продукты и AI-инструменты.",
-      horizon: "2026",
-      status: "active",
-      actions: [
-        { id: "dla_project_2_1", title: "Собрать 10 тем", deadline: "2026-07-18", status: "active", note: "Без публикации личных финансов" },
-        { id: "dla_project_2_2", title: "Сделать первый черновик", deadline: "2026-07-25", status: "active", note: "Проверить формат" },
-      ],
-    },
-    {
-      id: "dla_skill_1",
-      kind: "skill",
-      skillType: "hard",
-      title: "Продуктовое мышление",
-      description: "Быстро превращать идею в понятный MVP и следующий шаг.",
-      horizon: "2026",
-      status: "active",
-      actions: [{ id: "dla_skill_1_1", title: "Разобрать 3 кейса", deadline: "2026-08-10", status: "active", note: "Сравнить метрики и решения" }],
-    },
-    {
-      id: "dla_skill_2",
-      kind: "skill",
-      skillType: "soft",
-      title: "Коммуникация",
-      description: "Яснее формулировать задачи, ожидания и критерии готовности.",
-      horizon: "постоянно",
-      status: "active",
-      actions: [{ id: "dla_skill_2_1", title: "Вести список удачных формулировок", deadline: "", status: "active", note: "Пополнять после встреч" }],
-    },
-    {
-      id: "dla_health_1",
-      kind: "health",
-      title: "Энергия и сон",
-      description: "Стабилизировать сон, тренировки и базовые проверки здоровья.",
-      horizon: "2026",
-      status: "active",
-      actions: [
-        { id: "dla_health_1_1", title: "Вернуть 3 тренировки в неделю", deadline: "2026-07-31", status: "active", note: "Начать с коротких" },
-        { id: "dla_health_1_2", title: "Запланировать чекап", deadline: "2026-08-15", status: "active", note: "Список врачей и анализов" },
-      ],
-    },
-    {
-      id: "dla_hobby_1",
-      kind: "hobby",
-      title: "Коллекционирование LEGO",
-      description: "Вести список наборов, план покупок и аккуратное хранение коллекции.",
-      horizon: "2026",
-      status: "active",
-      actions: [{ id: "dla_hobby_1_1", title: "Обновить wishlist", deadline: "2026-07-20", status: "active", note: "Разделить по приоритетам" }],
-    },
-  ],
-  expenses: demoExpenses,
-  cashAccounts: [
-    { id: "dca1", name: "Карта", kind: "card", balance: 420_000 },
-    { id: "dca2", name: "Наличные", kind: "cash", balance: 80_000 },
-    { id: "dca3", name: "Подушка безопасности", kind: "safety", balance: 1_200_000 },
-  ],
-  transactionCategories: demoTransactionCategories,
-  transactions: [
-    { id: "dtx1", date: "2026-07-02", description: "Супермаркет", amount: 8_400, type: "expense", categoryId: transactionCategoryIdForExpense("de2"), source: "pdf" },
-    { id: "dtx2", date: "2026-07-03", description: "Кафе", amount: 2_800, type: "expense", categoryId: transactionCategoryIdForExpense("de2"), source: "pdf" },
-    { id: "dtx3", date: "2026-07-04", description: "Такси", amount: 1_650, type: "expense", categoryId: transactionCategoryIdForExpense("de3"), source: "pdf" },
-    { id: "dtx4", date: "2026-07-05", description: "Абонемент", amount: 12_000, type: "expense", categoryId: transactionCategoryIdForExpense("de4"), source: "manual" },
-    { id: "dtx5", date: "2026-07-06", description: "Курс", amount: 24_000, type: "expense", categoryId: transactionCategoryIdForExpense("de5"), source: "manual" },
-    { id: "dtx6", date: "2026-07-06", description: "Подписки", amount: 4_900, type: "expense", categoryId: transactionCategoryIdForExpense("de6"), source: "pdf" },
-  ],
-  incomeSources: [
-    { id: "di1", name: "Основная работа", type: "контракт", geography: "онлайн", monthly: 420_000, growth: "medium", selfDependent: true, countryBound: false, status: "active", kind: "active" },
-    { id: "di2", name: "Консалтинг", type: "проектный доход", geography: "онлайн", monthly: 160_000, growth: "high", selfDependent: true, countryBound: false, status: "active", kind: "active" },
-    { id: "di3", name: "Инвестиции", type: "пассивный доход", geography: "глобально", monthly: 45_000, growth: "medium", selfDependent: false, countryBound: false, status: "active", kind: "passive" },
-  ],
-  stages: [
-    {
-      id: "ds1",
-      period: "37-40",
-      title: "Фундамент",
-      goals: ["Стабилизировать доход", "Собрать подушку", "Развить личные проекты"],
-      desiredIncome: "500 000 - 800 000 ₽",
-      targetAssets: ["Авто для путешествий", "Мастерская и студия"],
-      role: "Автор проектов",
-      lifeType: "Собранная, рабочая, спокойная",
-      focus: "Фокус на системе и капитале",
-    },
-    {
-      id: "ds2",
-      period: "40-50",
-      title: "Масштаб",
-      goals: ["Увеличить капитал", "Снизить операционную нагрузку", "Расширить географию"],
-      desiredIncome: "1 000 000 ₽+",
-      targetAssets: ["Квартира для семьи"],
-      role: "Владелец системы",
-      lifeType: "Семья, проекты, мобильность",
-      focus: "Качество жизни и свобода выбора",
-    },
-  ],
-  incomeScenarios: [300_000, 500_000, 800_000, 1_200_000],
-  currentStageId: "ds1",
-  freedomTarget: { min: 800_000, max: 1_200_000 },
-  minIncome: 350_000,
-  changeLog: [],
-};
-
 const arrayStateKeys = [
   "assets",
   "targets",
@@ -789,8 +635,7 @@ const CapitalContext = createContext<Ctx | null>(null);
 
 export function CapitalProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const demoMode = isDemoMode();
-  const [state, setState] = useState<CapitalState>(() => (demoMode ? demoState : defaultState));
+  const [state, setState] = useState<CapitalState>(defaultState);
   const [localReady, setLocalReady] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const stateRef = useRef(state);
@@ -803,12 +648,6 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   // intentionally ignored so stale published values cannot override the
   // current defaults after a deploy.
   useEffect(() => {
-    if (demoMode) {
-      setState(demoState);
-      setLocalReady(true);
-      return;
-    }
-
     try {
       // Forced reset: if the stored token differs from the current one,
       // wipe all known keys and fall through to defaults.
@@ -917,10 +756,10 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       setLocalReady(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode]);
+  }, []);
 
   useEffect(() => {
-    if (demoMode || !localReady || !user?.id || !supabase) {
+    if (!localReady || !user?.id || !supabase) {
       setCloudReady(false);
       return;
     }
@@ -978,10 +817,10 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [demoMode, localReady, user?.id]);
+  }, [localReady, user?.id]);
 
   useEffect(() => {
-    if (demoMode || !cloudReady || !user?.id || !supabase) return;
+    if (!cloudReady || !user?.id || !supabase) return;
 
     const next = normalizeCapitalState(state);
     if (isDefaultLikeCapitalState(next)) return;
@@ -1003,20 +842,18 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [demoMode, cloudReady, state, user?.id]);
+  }, [cloudReady, state, user?.id]);
 
   // Helper that updates React state AND writes localStorage in one shot,
   // using the freshly computed next state so we never persist a stale value.
   const commit = (updater: (s: CapitalState) => CapitalState) => {
     setState((s) => {
       const next = updater(s);
-      if (!demoMode) {
-        try {
-          if (typeof window !== "undefined") {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-          }
-        } catch {}
-      }
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+      } catch {}
       return next;
     });
   };
@@ -1308,11 +1145,6 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const clearChangeLog = () => commit((s) => ({ ...s, changeLog: [] }));
 
   const reset = () => {
-    if (demoMode) {
-      setState(demoState);
-      return;
-    }
-
     try {
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY);

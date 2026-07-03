@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { CapitalProvider, isDemoMode, useCapital } from "@/lib/capital-store";
+import { CapitalProvider, useCapital } from "@/lib/capital-store";
 import { ThemeToggle, useThemeMode } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth";
 import {
@@ -40,23 +40,20 @@ const nav = [
 
 function AccountPanel() {
   const { user, signOut } = useAuth();
-  const demoMode = isDemoMode();
 
   return (
     <div className="rounded-md border border-border bg-[color:var(--surface-elevated)]/50 p-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <UserCircle className="h-4 w-4 text-[color:var(--gold)]" />
-        <span className="truncate">{demoMode ? "Демо-режим" : user?.email ?? "Аккаунт"}</span>
+        <span className="truncate">{user?.email ?? "Аккаунт"}</span>
       </div>
-      {!demoMode && (
-        <button
-          onClick={() => void signOut()}
-          className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          <span>Выйти</span>
-        </button>
-      )}
+      <button
+        onClick={() => void signOut()}
+        className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        <span>Выйти</span>
+      </button>
     </div>
   );
 }
@@ -64,8 +61,6 @@ function AccountPanel() {
 function ResetButton() {
   const { reset } = useCapital();
   const [confirming, setConfirming] = useState(false);
-
-  if (isDemoMode()) return null;
 
   if (confirming) {
     return (
@@ -112,7 +107,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
   const { theme, toggleTheme } = useThemeMode();
   const path = location.pathname;
-  const demoMode = isDemoMode();
 
   return (
     <CapitalProvider>
@@ -140,7 +134,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  search={demoMode ? { demo: "1" } : undefined}
                   className={
                     "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors " +
                     (active
@@ -169,15 +162,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">37–40</div>
               <ThemeToggle compact theme={theme} onToggle={toggleTheme} />
-              {!demoMode && (
-                <button
-                  onClick={() => void signOut()}
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
-                  aria-label="Выйти"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              )}
+              <button
+                onClick={() => void signOut()}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+                aria-label="Выйти"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </div>
           <div className="flex gap-1 overflow-x-auto px-3 pb-2 no-scrollbar">
@@ -187,7 +178,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  search={demoMode ? { demo: "1" } : undefined}
                   className={
                     "whitespace-nowrap px-3 py-1.5 rounded-md text-xs " +
                     (active ? "bg-[color:var(--surface-elevated)] text-[color:var(--gold)] border border-border" : "text-muted-foreground")

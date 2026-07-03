@@ -2,12 +2,9 @@ import type { ReactNode } from "react";
 
 import { AuthScreen } from "@/components/AuthScreen";
 import { useAuth } from "@/lib/auth";
-import { isDemoMode } from "@/lib/capital-store";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { loading, session } = useAuth();
-
-  if (isDemoMode()) return <>{children}</>;
 
   if (loading) {
     return (
