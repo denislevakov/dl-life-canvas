@@ -83,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Life Capital — Дашборд управления капиталом" },
+      { name: "twitter:title", content: "LIFE IS GOOD — Дашборд жизни" },
       { name: "twitter:description", content: "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e14d2dba-6401-45d2-9531-587d868e6b47/id-preview-d2bf0f8a--86d5f5b5-2043-46ec-b45c-6c484799f3b3.lovable.app-1779697609412.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e14d2dba-6401-45d2-9531-587d868e6b47/id-preview-d2bf0f8a--86d5f5b5-2043-46ec-b45c-6c484799f3b3.lovable.app-1779697609412.png" },
@@ -133,4 +133,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

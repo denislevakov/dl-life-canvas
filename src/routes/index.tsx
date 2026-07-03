@@ -81,7 +81,7 @@ function Index() {
     <PageContainer>
       <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--gold)]">Life Capital · Обзор</div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--gold)]">LIFE IS GOOD · Обзор</div>
           <h1 className="mt-3 font-display text-4xl text-foreground md:text-5xl">Где я сейчас</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
             Короткий снимок денег, капитала, проектов и ближайших целей.

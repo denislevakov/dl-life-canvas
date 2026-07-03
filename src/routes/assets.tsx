@@ -8,7 +8,7 @@ import { Plus, Trash2, Sparkles, Pencil, Check } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/assets")({
-  head: () => ({ meta: [{ title: "Активы · Life Capital" }, { name: "description", content: "Структура текущих активов и долей в общем капитале." }] }),
+  head: () => ({ meta: [{ title: "Активы · LIFE IS GOOD" }, { name: "description", content: "Структура текущих активов и долей в общем капитале." }] }),
   component: AssetsPage,
 });
 

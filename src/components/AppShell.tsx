@@ -121,8 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               }}
               className="group inline-block cursor-pointer"
             >
-              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground group-hover:text-[color:var(--gold)] transition-colors">Life Capital</div>
-              <div className="mt-1 font-display text-xl text-foreground group-hover:text-[color:var(--gold)] transition-colors">LIFE IS GOOD</div>
+              <div className="font-display text-xl text-foreground group-hover:text-[color:var(--gold)] transition-colors">LIFE IS GOOD</div>
               <div className="mt-0.5 text-[11px] text-muted-foreground group-hover:text-[color:var(--gold)]/80 transition-colors">Дашборд жизни</div>
             </a>
           </div>

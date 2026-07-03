@@ -34,7 +34,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
         <div className="text-center">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--gold)]">Life Capital</div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--gold)]">Life Is Good</div>
           <div className="mt-3 font-display text-2xl">Проверяю сессию</div>
           <div className="mt-2 text-sm text-muted-foreground">Секунду.</div>
         </div>

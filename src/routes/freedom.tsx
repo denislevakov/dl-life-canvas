@@ -5,7 +5,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { formatMillions, formatRub } from "@/lib/format";
 
 export const Route = createFileRoute("/freedom")({
-  head: () => ({ meta: [{ title: "Свобода · Life Capital" }, { name: "description", content: "Шкала финансовой свободы: выживание → наследие." }] }),
+  head: () => ({ meta: [{ title: "Свобода · LIFE IS GOOD" }, { name: "description", content: "Шкала финансовой свободы: выживание → наследие." }] }),
   component: FreedomPage,
 });
 

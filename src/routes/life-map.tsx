@@ -3,7 +3,7 @@ import { useCapital } from "@/lib/capital-store";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
 
 export const Route = createFileRoute("/life-map")({
-  head: () => ({ meta: [{ title: "Карта жизни · Life Capital" }, { name: "description", content: "Стратегическая дорожная карта на 37-50+ лет." }] }),
+  head: () => ({ meta: [{ title: "Карта жизни · LIFE IS GOOD" }, { name: "description", content: "Стратегическая дорожная карта на 37-50+ лет." }] }),
   component: LifeMap,
 });
 

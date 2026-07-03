@@ -7,7 +7,7 @@ import { formatRub } from "@/lib/format";
 import { Plus, Trash2, Globe, User, TrendingUp, Zap, Leaf } from "lucide-react";
 
 export const Route = createFileRoute("/income-sources")({
-  head: () => ({ meta: [{ title: "Источники дохода · Life Capital" }, { name: "description", content: "Текущие и будущие источники дохода, независимость и география." }] }),
+  head: () => ({ meta: [{ title: "Источники дохода · LIFE IS GOOD" }, { name: "description", content: "Текущие и будущие источники дохода, независимость и география." }] }),
   component: IncomePage,
 });
 
