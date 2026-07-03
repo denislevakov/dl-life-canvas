@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpRight, Compass, FolderKanban, ListChecks } from "lucide-react";
+import { ArrowUpRight, Brain, Compass, FolderKanban, Gamepad2, HeartPulse, ListChecks } from "lucide-react";
 
 import { MetricCard, PageContainer } from "@/components/MetricCard";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -29,6 +29,12 @@ const firstOpenAction = (actions: { deadline: string; status: string; title: str
     .slice()
     .sort((a, b) => (a.deadline || "9999-12-31").localeCompare(b.deadline || "9999-12-31"))[0];
 
+const personalAreaSections = [
+  { kind: "skill", label: "Скилы", to: "/skills", icon: Brain },
+  { kind: "health", label: "Здоровье", to: "/health", icon: HeartPulse },
+  { kind: "hobby", label: "Хобби", to: "/hobbies", icon: Gamepad2 },
+] as const;
+
 function Index() {
   const { state, totals } = useCapital();
   const {
@@ -56,6 +62,20 @@ function Index() {
     .slice()
     .sort((a, b) => (a.deadline || "9999-12-31").localeCompare(b.deadline || "9999-12-31"))
     .slice(0, 3);
+
+  const personalFocus = personalAreaSections.map((section) => {
+    const areas = (state.lifeAreas ?? []).filter((area) => area.kind === section.kind && area.status === "active");
+    const actions = areas
+      .flatMap((area) =>
+        (area.actions ?? [])
+          .filter((action) => action.status === "active" && action.deadline)
+          .map((action) => ({ ...action, areaTitle: area.title })),
+      )
+      .sort((a, b) => (a.deadline || "9999-12-31").localeCompare(b.deadline || "9999-12-31"))
+      .slice(0, 3);
+
+    return { ...section, areas, actions };
+  });
 
   return (
     <PageContainer>
@@ -239,6 +259,61 @@ function Index() {
           <Link to="/life-map" className="mt-5 inline-flex items-center gap-1 text-xs text-[color:var(--gold)] hover:underline">
             Карта жизни <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">Личное развитие</div>
+            <div className="mt-1 font-display text-xl">Ближайшие действия</div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {personalFocus.map((section) => {
+            const Icon = section.icon;
+            return (
+              <div key={section.kind} className="rounded-lg border border-border bg-[color:var(--surface-elevated)] p-4">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                      <Icon className="h-3.5 w-3.5 text-[color:var(--gold)]" />
+                      {section.label}
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      В работе: <span className="text-foreground tabular">{section.areas.length}</span>
+                    </div>
+                  </div>
+                  <Link to={section.to} className="inline-flex items-center gap-1 text-xs text-[color:var(--gold)] hover:underline">
+                    Все <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+
+                {section.actions.length ? (
+                  <div className="space-y-3">
+                    {section.actions.map((action) => (
+                      <div key={action.id} className="rounded-md border border-border bg-background/55 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-[11px] text-muted-foreground">{action.areaTitle}</div>
+                            <div className="mt-1 text-sm leading-snug text-foreground">{action.title}</div>
+                          </div>
+                          <div className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground tabular">
+                            {formatGoalDeadline(action.deadline)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+                    Действий со сроком пока нет.
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </PageContainer>
