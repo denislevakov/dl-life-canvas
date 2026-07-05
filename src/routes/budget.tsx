@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, FileText, Plus, Trash2, Upload } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, FileText, GripVertical, Plus, Trash2, Upload } from "lucide-react";
 
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
@@ -28,7 +28,9 @@ function BudgetPage() {
   const {
     state,
     totals,
+    update,
     updateCashAccount,
+    transferCashAccountBalance,
     addCashAccount,
     removeCashAccount,
     updateExpense,
@@ -46,6 +48,9 @@ function BudgetPage() {
   const transactions = state.transactions ?? [];
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [newAccountName, setNewAccountName] = useState("");
+  const [transferMessage, setTransferMessage] = useState<string | null>(null);
+  const [transferDraft, setTransferDraft] = useState({ fromId: "", toId: "", amount: 0 });
+  const [draggedExpenseId, setDraggedExpenseId] = useState<string | null>(null);
   const [openExpenseRows, setOpenExpenseRows] = useState<string[]>([]);
   const [draft, setDraft] = useState({
     date: todayIso(),
@@ -108,6 +113,26 @@ function BudgetPage() {
   const extraAccounts = cashAccounts.filter(
     (account) => account.id !== primaryCardCashAccount?.id && account.id !== primarySafetyAccount?.id,
   );
+  const transferFromAccount = cashAccounts.find((account) => account.id === transferDraft.fromId);
+  const canTransfer =
+    Boolean(transferDraft.fromId && transferDraft.toId) &&
+    transferDraft.fromId !== transferDraft.toId &&
+    transferDraft.amount > 0 &&
+    Boolean(transferFromAccount && transferFromAccount.balance >= transferDraft.amount);
+
+  useEffect(() => {
+    if (!cashAccounts.length) return;
+    setTransferDraft((value) => {
+      const fromExists = cashAccounts.some((account) => account.id === value.fromId);
+      const toExists = cashAccounts.some((account) => account.id === value.toId);
+      const first = cashAccounts[0]?.id ?? "";
+      const second = cashAccounts.find((account) => account.id !== first)?.id ?? first;
+      const nextFromId = fromExists ? value.fromId : first;
+      const nextToId = toExists && value.toId !== nextFromId ? value.toId : second;
+      if (value.fromId === nextFromId && value.toId === nextToId) return value;
+      return { ...value, fromId: nextFromId, toId: nextToId };
+    });
+  }, [cashAccounts]);
 
   const setCardCashBalance = (nextBalance: number) => {
     const otherBalance = cardCashAccounts
@@ -166,6 +191,37 @@ function BudgetPage() {
     if (!name) return;
     addCashAccount({ id: `ca_${Date.now()}`, name, kind: "card", balance: 0 });
     setNewAccountName("");
+  };
+
+  const submitTransfer = () => {
+    if (!transferDraft.fromId || !transferDraft.toId || transferDraft.fromId === transferDraft.toId) {
+      setTransferMessage("Выбери два разных счета.");
+      return;
+    }
+    if (transferDraft.amount <= 0) {
+      setTransferMessage("Укажи сумму перевода.");
+      return;
+    }
+    if (!transferFromAccount || transferFromAccount.balance < transferDraft.amount) {
+      setTransferMessage("На счете-источнике недостаточно денег.");
+      return;
+    }
+    const toAccount = cashAccounts.find((account) => account.id === transferDraft.toId);
+    transferCashAccountBalance(transferDraft.fromId, transferDraft.toId, transferDraft.amount);
+    setTransferMessage(`${formatRub(transferDraft.amount)} перенесено: ${transferFromAccount.name} → ${toAccount?.name ?? "другой счет"}.`);
+    setTransferDraft((value) => ({ ...value, amount: 0 }));
+  };
+
+  const reorderExpenses = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const expenses = [...(state.expenses ?? [])];
+    const sourceIndex = expenses.findIndex((expense) => expense.id === sourceId);
+    const targetIndex = expenses.findIndex((expense) => expense.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = expenses.splice(sourceIndex, 1);
+    expenses.splice(targetIndex, 0, moved);
+    update({ expenses });
+    setDraggedExpenseId(null);
   };
 
   const toggleExpenseRow = (id: string) =>
@@ -273,8 +329,65 @@ function BudgetPage() {
 
       <details className="mb-8 rounded-xl border border-border bg-card p-4">
         <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">
-          Дополнительные счета
+          Счета и переводы
         </summary>
+
+        <div className="mt-4 rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-4">
+          <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <ArrowRightLeft className="h-3.5 w-3.5 text-[color:var(--gold)]" />
+            Перевод между счетами
+          </div>
+          <div className="grid gap-2 md:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)_140px_auto]">
+            <select
+              value={transferDraft.fromId}
+              onChange={(event) => {
+                setTransferMessage(null);
+                setTransferDraft((value) => ({ ...value, fromId: event.target.value }));
+              }}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+            >
+              {cashAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} · {formatRub(account.balance)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={transferDraft.toId}
+              onChange={(event) => {
+                setTransferMessage(null);
+                setTransferDraft((value) => ({ ...value, toId: event.target.value }));
+              }}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+            >
+              {cashAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} · {formatRub(account.balance)}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={transferDraft.amount || ""}
+              onChange={(event) => {
+                setTransferMessage(null);
+                setTransferDraft((value) => ({ ...value, amount: Math.max(0, Number(event.target.value) || 0) }));
+              }}
+              placeholder="Сумма"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              onClick={submitTransfer}
+              disabled={!canTransfer}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Перенести
+            </button>
+          </div>
+          {transferMessage ? <div className="mt-3 text-xs text-muted-foreground">{transferMessage}</div> : null}
+        </div>
 
         {extraAccounts.length ? (
           <div className="mt-4 grid gap-2 md:grid-cols-3">
@@ -334,7 +447,32 @@ function BudgetPage() {
             {state.expenses.map((expense) => {
               const share = (expense.amount / (monthlyMinimum || 1)) * 100;
               return (
-                <div key={expense.id} className="flex items-center gap-3 py-3">
+                <div
+                  key={expense.id}
+                  onDragOver={(event) => {
+                    if (draggedExpenseId && draggedExpenseId !== expense.id) event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const sourceId = draggedExpenseId ?? event.dataTransfer.getData("text/plain");
+                    if (sourceId) reorderExpenses(sourceId, expense.id);
+                  }}
+                  onDragEnd={() => setDraggedExpenseId(null)}
+                  className={"flex items-center gap-3 py-3 transition-opacity " + (draggedExpenseId === expense.id ? "opacity-50" : "")}
+                >
+                  <div
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggedExpenseId(expense.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", expense.id);
+                    }}
+                    onDragEnd={() => setDraggedExpenseId(null)}
+                    className="inline-flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
+                    title="Перетащить"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </div>
                   <input
                     value={expense.name}
                     onChange={(event) => updateExpense(expense.id, { name: event.target.value })}

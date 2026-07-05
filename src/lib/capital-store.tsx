@@ -591,6 +591,7 @@ interface Ctx {
   addExpense: (e: Expense) => void;
   removeExpense: (id: string) => void;
   updateCashAccount: (id: string, patch: Partial<CashAccount>) => void;
+  transferCashAccountBalance: (fromId: string, toId: string, amount: number) => void;
   addCashAccount: (account: CashAccount) => void;
   removeCashAccount: (id: string) => void;
   addTransactionCategory: (category: TransactionCategory) => void;
@@ -947,6 +948,44 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const next = { ...s, cashAccounts: accounts.map((account) => (account.id === id ? { ...account, ...patch } : account)) };
       return pushLog(next, diffs.map((d) => ({ scope: "cash_account", action: "update", entityId: id, entityName: cur.name, ...d })));
     });
+  const transferCashAccountBalance = (fromId: string, toId: string, amount: number) =>
+    commit((s) => {
+      const transferAmount = Math.round(Math.abs(Number(amount) || 0) * 100) / 100;
+      const accounts = s.cashAccounts ?? [];
+      const from = accounts.find((account) => account.id === fromId);
+      const to = accounts.find((account) => account.id === toId);
+      if (!from || !to || from.id === to.id || transferAmount <= 0 || from.balance < transferAmount) return s;
+
+      const next = {
+        ...s,
+        cashAccounts: accounts.map((account) => {
+          if (account.id === from.id) return { ...account, balance: account.balance - transferAmount };
+          if (account.id === to.id) return { ...account, balance: account.balance + transferAmount };
+          return account;
+        }),
+      };
+
+      return pushLog(next, [
+        {
+          scope: "cash_account",
+          action: "update",
+          entityId: from.id,
+          entityName: from.name,
+          field: "balance",
+          before: from.balance,
+          after: from.balance - transferAmount,
+        },
+        {
+          scope: "cash_account",
+          action: "update",
+          entityId: to.id,
+          entityName: to.name,
+          field: "balance",
+          before: to.balance,
+          after: to.balance + transferAmount,
+        },
+      ]);
+    });
   const addCashAccount = (account: CashAccount) =>
     commit((s) =>
       pushLog(
@@ -1195,6 +1234,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
         addExpense,
         removeExpense,
         updateCashAccount,
+        transferCashAccountBalance,
         addCashAccount,
         removeCashAccount,
         addTransactionCategory,
