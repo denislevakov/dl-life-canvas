@@ -19,11 +19,10 @@ const stages = [
 
 function FreedomPage() {
   const { state, totals } = useCapital();
-  const { monthlyMinimum, estimatedCapital, activeIncome, passiveIncome } = totals;
+  const { monthlyMinimum, estimatedCapital, minIncome, minIncomeSurplus, passiveIncome } = totals;
 
-  const currentIncome = activeIncome + passiveIncome;
-  const coverage = monthlyMinimum ? currentIncome / monthlyMinimum : 0;
-  const passiveCoverage = monthlyMinimum ? passiveIncome / monthlyMinimum : 0;
+  const currentIncome = minIncome;
+  const coverage = monthlyMinimum ? minIncome / monthlyMinimum : 0;
   const offOperational = currentIncome ? (passiveIncome / currentIncome) * 100 : 0;
   const freedomTarget = state.freedomTarget.min;
   const freedomProgress = freedomTarget ? Math.min(100, (currentIncome / freedomTarget) * 100) : 0;
@@ -40,8 +39,8 @@ function FreedomPage() {
       <PageHeader eyebrow="Свобода" title="Близость к свободе" description="Шкала от выживания к наследию. Считается из ваших активов, доходов и расходов." />
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <MetricCard label="Покрытие минимума" value={`${coverage.toFixed(1)}×`} sublabel={`${formatRub(currentIncome)} / ${formatRub(monthlyMinimum)}`} accent="gold" />
-        <MetricCard label="Запас прочности" value={`${(currentIncome - monthlyMinimum > 0 ? (currentIncome - monthlyMinimum) / monthlyMinimum : 0).toFixed(1)}×`} sublabel="сверх минимума" accent="green" />
+        <MetricCard label="Покрытие расхода" value={`${coverage.toFixed(1)}×`} sublabel={`${formatRub(minIncome)} / ${formatRub(monthlyMinimum)}`} accent="gold" />
+        <MetricCard label="Остаток" value={formatRub(minIncomeSurplus)} sublabel="доход минус расход" accent="green" />
         <MetricCard label="Общий капитал" value={formatMillions(estimatedCapital)} sublabel="средняя оценка" />
         <MetricCard label="Пассивный доход" value={formatRub(passiveIncome)} sublabel={`${offOperational.toFixed(0)}% вне операционки`} accent="gold" />
       </div>

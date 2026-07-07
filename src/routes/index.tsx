@@ -43,6 +43,7 @@ function Index() {
     estimatedCapital,
     monthlyMinimum,
     minIncome,
+    minIncomeSurplus,
     currentBalance,
     cardCashBalance,
     safetyBalance,
@@ -117,11 +118,12 @@ function Index() {
             </div>
           </div>
           <div className="hidden border-l border-border pl-6 md:block">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Прожиточный минимум</div>
-            <div className="mt-2 font-display text-3xl tabular">{formatRub(monthlyMinimum)}</div>
-            <div className="mt-1 text-xs text-muted-foreground">в месяц</div>
-            <div className="mt-6 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Минимальный доход</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Минимальный доход</div>
             <div className="mt-2 font-display text-3xl text-foreground tabular">{formatRub(minIncome)}</div>
+            <div className="mt-1 text-xs text-muted-foreground">в месяц</div>
+            <div className="mt-6 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Остаток</div>
+            <div className="mt-2 font-display text-3xl text-[color:var(--gold)] tabular">{formatRub(minIncomeSurplus)}</div>
+            <div className="mt-1 text-xs text-muted-foreground">после {formatRub(monthlyMinimum)} расходов</div>
           </div>
         </div>
       </div>

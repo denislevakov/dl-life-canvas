@@ -152,6 +152,7 @@ interface CapitalState {
   currentStageId: string;
   freedomTarget: { min: number; max: number };
   minIncome: number;
+  minExpense: number;
   changeLog: ChangeEntry[];
 }
 
@@ -526,6 +527,7 @@ const defaultState: CapitalState = {
   currentStageId: "s1",
   freedomTarget: { min: 1_000_000, max: 2_000_000 },
   minIncome: 400_000,
+  minExpense: defaultExpenses.reduce((sum, expense) => sum + expense.amount, 0),
   changeLog: [],
 };
 
@@ -555,6 +557,10 @@ const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined):
 
   if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
     merged.minIncome = defaultState.minIncome;
+  }
+  if (typeof merged.minExpense !== "number" || !isFinite(merged.minExpense) || merged.minExpense < 0) {
+    const legacyExpenseTotal = (merged.expenses ?? []).reduce((sum, expense) => sum + (typeof expense.amount === "number" ? expense.amount : 0), 0);
+    merged.minExpense = legacyExpenseTotal || defaultState.minExpense;
   }
   if (!merged.freedomTarget || typeof merged.freedomTarget.min !== "number" || typeof merged.freedomTarget.max !== "number") {
     merged.freedomTarget = defaultState.freedomTarget;
@@ -621,6 +627,7 @@ interface Ctx {
     maxCapital: number;
     monthlyMinimum: number;
     minIncome: number;
+    minIncomeSurplus: number;
     activeIncome: number;
     passiveIncome: number;
     currentBalance: number;
@@ -1201,8 +1208,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const minCapital = state.assets.reduce((s, a) => s + a.min, 0);
   const estimatedCapital = state.assets.reduce((s, a) => s + a.estimated, 0);
   const maxCapital = state.assets.reduce((s, a) => s + a.max, 0);
-  const monthlyMinimum = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const monthlyMinimum = state.minExpense;
   const minIncome = state.minIncome;
+  const minIncomeSurplus = minIncome - monthlyMinimum;
   const activeIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "active").reduce((s, i) => s + i.monthly, 0);
   const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
   const cashAccounts = state.cashAccounts ?? [];
@@ -1264,6 +1272,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
           maxCapital,
           monthlyMinimum,
           minIncome,
+          minIncomeSurplus,
           activeIncome,
           passiveIncome,
           currentBalance,
