@@ -56,7 +56,7 @@ function Index() {
 
   const projects = (state.lifeAreas ?? [])
     .filter((area) => area.status === "active" && area.kind === "project")
-    .slice(0, 3);
+    .slice(0, 4);
 
   const upcomingGoals = (state.lifeGoals ?? [])
     .filter((goal) => goal.status === "active")
