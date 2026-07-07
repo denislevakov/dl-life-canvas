@@ -174,7 +174,7 @@ const RESET_TOKEN_KEY = "life-capital-reset-token";
 
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
-const DESC_VERSION = "v8-target-copy";
+const DESC_VERSION = "v9-stage-income-ranges";
 const LIFE_AREAS_VERSION = "v2-test-overview";
 
 const defaultExpenses: Expense[] = [
@@ -495,12 +495,12 @@ const defaultState: CapitalState = {
       title: "Бизнес и семья",
       goals: [
         "Построить стабильный бизнес или войти в долю",
-        "Доход 1M–2M ₽/мес",
+        "Доход 1,5M–2,5M ₽/мес",
         "Масштабировать дополнительные источники дохода",
         "Дом на природе",
         "Дом во Флориде",
       ],
-      desiredIncome: "1 000 000 – 1 500 000 ₽",
+      desiredIncome: "1 500 000 – 2 500 000 ₽",
       targetAssets: ["Дом на природе", "Дом во Флориде"],
       role: "Владелец / партнёр в бизнесе",
       lifeType: "Семья, бизнес, международная мобильность",
@@ -516,7 +516,7 @@ const defaultState: CapitalState = {
         "Делать творческие проекты",
         "Не знать зимы",
       ],
-      desiredIncome: "2 000 000 ₽ и выше",
+      desiredIncome: "2 500 000 ₽ и выше",
       targetAssets: ["Дом во Флориде", "Дом на природе"],
       role: "Инвестор, наблюдатель, автор",
       lifeType: "Свободный, между странами, творческий",
