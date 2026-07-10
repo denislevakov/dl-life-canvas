@@ -34,6 +34,22 @@ const formatGoalDeadline = (value: string) => {
   return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
 };
 
+const goalDeadlineKey = (goal: Pick<LifeGoal, "deadline" | "title">) => goal.deadline || "9999-12-31";
+
+const compareGoalsByDeadline = (a: Pick<LifeGoal, "deadline" | "title">, b: Pick<LifeGoal, "deadline" | "title">) => {
+  const byDeadline = goalDeadlineKey(a).localeCompare(goalDeadlineKey(b));
+  if (byDeadline !== 0) return byDeadline;
+  return a.title.localeCompare(b.title, "ru");
+};
+
+const insertGoalByDeadline = (items: LifeGoal[], goal: LifeGoal) => {
+  const next = [...items];
+  let targetIndex = next.findIndex((item) => item.status !== "backlog" && compareGoalsByDeadline(goal, item) < 0);
+  if (targetIndex < 0) targetIndex = next.findIndex((item) => item.status === "backlog");
+  next.splice(targetIndex < 0 ? next.length : targetIndex, 0, goal);
+  return next;
+};
+
 function EmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
@@ -101,7 +117,7 @@ function GoalsPage() {
       budget: draft.budget,
       note: "",
     };
-    addLifeGoal(goal);
+    update({ lifeGoals: insertGoalByDeadline(goals, goal) });
     setDraft({ title: "", period: currentYear(), deadline: todayIso(), budget: 0 });
     setFilter("active");
   };
@@ -141,6 +157,19 @@ function GoalsPage() {
     allGoals.splice(targetIndex, 0, moved);
     update({ lifeGoals: allGoals });
     setDraggedGoalId(null);
+  };
+
+  const sortGoalsByDeadline = () => {
+    const plannedGoals = goals.filter((goal) => goal.status !== "backlog").slice().sort(compareGoalsByDeadline);
+    const backlog = goals.filter((goal) => goal.status === "backlog");
+    update({ lifeGoals: [...plannedGoals, ...backlog] });
+  };
+
+  const activateBacklogGoal = (id: string) => {
+    const current = goals.find((goal) => goal.id === id);
+    if (!current) return;
+    const activated: LifeGoal = { ...current, status: "active", period: currentYear(), deadline: todayIso() };
+    update({ lifeGoals: insertGoalByDeadline(goals.filter((goal) => goal.id !== id), activated) });
   };
 
   return (
@@ -214,7 +243,7 @@ function GoalsPage() {
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
         {[
           { value: "all", label: "Все" },
           { value: "active", label: "В работе" },
@@ -233,6 +262,13 @@ function GoalsPage() {
             {item.label}
           </button>
         ))}
+        <button
+          onClick={sortGoalsByDeadline}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          По сроку
+        </button>
       </div>
 
       {visibleGoals.length === 0 ? (
@@ -461,13 +497,7 @@ function GoalsPage() {
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={() =>
-                      updateLifeGoal(goal.id, {
-                        status: "active",
-                        period: currentYear(),
-                        deadline: todayIso(),
-                      })
-                    }
+                    onClick={() => activateBacklogGoal(goal.id)}
                     className="inline-flex items-center gap-2 rounded-md border border-[color:var(--gold)]/40 px-3 py-2 text-xs text-[color:var(--gold)] transition-colors hover:bg-[color:var(--gold)]/10"
                   >
                     <PlayCircle className="h-3.5 w-3.5" />
