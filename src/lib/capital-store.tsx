@@ -138,6 +138,7 @@ export interface ChangeEntry {
 }
 
 interface CapitalState {
+  cashBaselineVersion?: string;
   assets: Asset[];
   targets: TargetAsset[];
   lifeGoals: LifeGoal[];
@@ -171,6 +172,9 @@ const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 // only triggers another reset if it changes again.
 const RESET_TOKEN = "2026-07-03-full-restore-from-id4";
 const RESET_TOKEN_KEY = "life-capital-reset-token";
+const CASH_BASELINE_VERSION = "2026-07-12-balance-baseline-38000-650000";
+const CARD_CASH_BASELINE = 38_000;
+const SAFETY_BASELINE = 650_000;
 
 // Target copy update token. Bump this to push new default names/descriptions
 // into saved data without wiping user-entered numbers.
@@ -301,6 +305,7 @@ const DESC_VERSION_KEY = "life-capital-desc-version";
 const LIFE_AREAS_VERSION_KEY = "life-capital-life-areas-version";
 
 const defaultState: CapitalState = {
+  cashBaselineVersion: CASH_BASELINE_VERSION,
   assets: [
     { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 10_500_000, estimated: 11_000_000, max: 11_500_000, status: "owned" },
     { id: "a2", name: "Коллекция LEGO", type: "collection", min: 1_200_000, estimated: 1_350_000, max: 1_500_000, status: "owned", identity: true },
@@ -465,9 +470,8 @@ const defaultState: CapitalState = {
   ],
   expenses: defaultExpenses,
   cashAccounts: [
-    { id: "ca1", name: "Карта", kind: "card", balance: 0 },
-    { id: "ca2", name: "Наличные", kind: "cash", balance: 0 },
-    { id: "ca3", name: "Подушка безопасности", kind: "safety", balance: 0 },
+    { id: "ca1", name: "Карта / наличные", kind: "card", balance: 38_000 },
+    { id: "ca3", name: "Подушка безопасности", kind: "safety", balance: 650_000 },
   ],
   transactionCategories: defaultTransactionCategories,
   transactions: [],
@@ -546,7 +550,40 @@ const arrayStateKeys = [
   "changeLog",
 ] as const;
 
+const applyCashBaseline = (state: CapitalState): CapitalState => {
+  const sourceAccounts = Array.isArray(state.cashAccounts) ? state.cashAccounts : [];
+  let accounts = [...sourceAccounts];
+
+  const primaryCardCashIndex = accounts.findIndex((account) => account.kind === "card" || account.kind === "cash");
+
+  if (primaryCardCashIndex >= 0) {
+    accounts = accounts.map((account, index) => {
+      if (index === primaryCardCashIndex) {
+        return { ...account, name: "Карта / наличные", kind: "card", balance: CARD_CASH_BASELINE };
+      }
+      if (account.kind === "card" || account.kind === "cash") return { ...account, balance: 0 };
+      return account;
+    });
+  } else {
+    accounts = [{ id: "ca1", name: "Карта / наличные", kind: "card", balance: CARD_CASH_BASELINE }, ...accounts];
+  }
+
+  const primarySafetyIndex = accounts.findIndex((account) => account.kind === "safety");
+  if (primarySafetyIndex >= 0) {
+    accounts = accounts.map((account, index) => {
+      if (index === primarySafetyIndex) return { ...account, name: "Подушка безопасности", kind: "safety", balance: SAFETY_BASELINE };
+      if (account.kind === "safety") return { ...account, balance: 0 };
+      return account;
+    });
+  } else {
+    accounts = [...accounts, { id: "ca3", name: "Подушка безопасности", kind: "safety", balance: SAFETY_BASELINE }];
+  }
+
+  return { ...state, cashAccounts: accounts, cashBaselineVersion: CASH_BASELINE_VERSION };
+};
+
 const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined): CapitalState => {
+  const shouldApplyCashBaseline = saved?.cashBaselineVersion !== CASH_BASELINE_VERSION;
   let merged = { ...defaultState, ...(saved ?? {}) } as CapitalState;
 
   for (const key of arrayStateKeys) {
@@ -567,6 +604,9 @@ const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined):
   }
   if (typeof merged.currentStageId !== "string") {
     merged.currentStageId = defaultState.currentStageId;
+  }
+  if (shouldApplyCashBaseline) {
+    merged = applyCashBaseline(merged);
   }
 
   return syncTransactionCategoriesWithExpenses(merged);
@@ -1223,11 +1263,22 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const monthIncomeTotal = monthTransactions
     .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
     .reduce((s, transaction) => s + transaction.amount, 0);
+  const cardCashAccountIds = new Set(cashAccounts.filter((account) => account.kind === "card" || account.kind === "cash").map((account) => account.id));
+  const safetyAccountIds = new Set(cashAccounts.filter((account) => account.kind === "safety").map((account) => account.id));
+  const defaultTransactionAccountId = cashAccounts.find((account) => account.kind === "card" || account.kind === "cash")?.id ?? cashAccounts[0]?.id ?? "";
+  const transactionDeltaForAccounts = (accountIds: Set<string>) =>
+    monthTransactions.reduce((sum, transaction) => {
+      if (transaction.type === "income" && transaction.categoryId === REVIEW_CATEGORY_ID) return sum;
+      const accountId = transaction.type === "expense" ? defaultTransactionAccountId : transaction.accountId || defaultTransactionAccountId;
+      if (!accountId || !accountIds.has(accountId)) return sum;
+      return sum + (transaction.type === "income" ? transaction.amount : -transaction.amount);
+    }, 0);
   const cardCashBaseBalance = cashAccounts
     .filter((account) => account.kind === "card" || account.kind === "cash")
     .reduce((s, account) => s + account.balance, 0);
-  const cardCashBalance = cardCashBaseBalance - monthExpenseTotal;
-  const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
+  const cardCashBalance = cardCashBaseBalance + transactionDeltaForAccounts(cardCashAccountIds);
+  const safetyBalance =
+    cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0) + transactionDeltaForAccounts(safetyAccountIds);
   const currentBalance = cardCashBalance + safetyBalance;
 
   return (

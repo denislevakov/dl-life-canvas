@@ -58,6 +58,7 @@ function BudgetPage() {
     amount: 0,
     type: "expense" as MoneyTransactionType,
     categoryId: categories[0]?.id ?? categories.find((category) => category.id === "cat_other")?.id ?? "",
+    accountId: "",
   });
 
   const currentMonthKey = new Date().toISOString().slice(0, 7);
@@ -108,6 +109,7 @@ function BudgetPage() {
   const safetyAccounts = cashAccounts.filter((account) => account.kind === "safety");
   const primaryCardCashAccount = cardCashAccounts[0];
   const primarySafetyAccount = safetyAccounts[0];
+  const defaultTransactionAccountId = primaryCardCashAccount?.id ?? cashAccounts[0]?.id ?? "";
   const extraAccounts = cashAccounts.filter(
     (account) => account.id !== primaryCardCashAccount?.id && account.id !== primarySafetyAccount?.id,
   );
@@ -131,6 +133,14 @@ function BudgetPage() {
       return { ...value, fromId: nextFromId, toId: nextToId };
     });
   }, [cashAccounts]);
+
+  useEffect(() => {
+    if (!cashAccounts.length) return;
+    setDraft((value) => {
+      if (value.accountId && cashAccounts.some((account) => account.id === value.accountId)) return value;
+      return { ...value, accountId: defaultTransactionAccountId };
+    });
+  }, [cashAccounts, defaultTransactionAccountId]);
 
   const setCardCashBalance = (nextBalance: number) => {
     const otherBalance = cardCashAccounts
@@ -163,6 +173,7 @@ function BudgetPage() {
       amount: Math.abs(draft.amount),
       type: draft.type,
       categoryId: draft.categoryId,
+      accountId: draft.type === "income" ? draft.accountId || defaultTransactionAccountId : defaultTransactionAccountId,
       source: "manual",
     });
     setDraft({
@@ -171,6 +182,7 @@ function BudgetPage() {
       amount: 0,
       type: "expense",
       categoryId: draft.categoryId,
+      accountId: draft.accountId || defaultTransactionAccountId,
     });
   };
 
@@ -358,7 +370,12 @@ function BudgetPage() {
             </div>
             <div className="grid gap-2">
               {reviewTransactions.slice(0, 6).map((transaction) => (
-                <div key={transaction.id} className="grid gap-2 rounded-md border border-border bg-card/70 p-3 md:grid-cols-[1fr_130px_180px_36px] md:items-center">
+                <div
+                  key={transaction.id}
+                  className={`grid gap-2 rounded-md border border-border bg-card/70 p-3 md:items-center ${
+                    transaction.type === "income" ? "md:grid-cols-[1fr_130px_180px_180px_36px]" : "md:grid-cols-[1fr_130px_180px_36px]"
+                  }`}
+                >
                   <div className="min-w-0">
                     <div className="truncate text-sm text-foreground">{transaction.description}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
@@ -372,6 +389,9 @@ function BudgetPage() {
                       updateTransaction(transaction.id, {
                         categoryId: event.target.value,
                         type: event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
+                        accountId: (event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type) === "income"
+                          ? transaction.accountId || defaultTransactionAccountId
+                          : defaultTransactionAccountId,
                       })
                     }
                     className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
@@ -386,6 +406,17 @@ function BudgetPage() {
                       <option key={category.id} value={category.id}>{category.name}</option>
                     ))}
                   </select>
+                  {transaction.type === "income" ? (
+                    <select
+                      value={transaction.accountId || defaultTransactionAccountId}
+                      onChange={(event) => updateTransaction(transaction.id, { accountId: event.target.value })}
+                      className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                    >
+                      {cashAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>{account.name}</option>
+                      ))}
+                    </select>
+                  ) : null}
                   <button
                     onClick={() => removeTransaction(transaction.id)}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
@@ -440,6 +471,7 @@ function BudgetPage() {
                               updateTransaction(transaction.id, {
                                 categoryId: event.target.value,
                                 type: event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
+                                accountId: defaultTransactionAccountId,
                               })
                             }
                             className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
@@ -484,7 +516,7 @@ function BudgetPage() {
 
         <details className="mt-5 rounded-lg border border-dashed border-border px-3 py-2">
           <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">Добавить расход или доход вручную</summary>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto] lg:items-end">
+          <div className={`mt-4 grid gap-3 lg:items-end ${draft.type === "income" ? "lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_150px_auto]" : "lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto]"}`}>
             <label>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Дата</span>
               <input
@@ -536,6 +568,20 @@ function BudgetPage() {
                 ))}
               </select>
             </label>
+            {draft.type === "income" ? (
+              <label>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Счет</span>
+                <select
+                  value={draft.accountId || defaultTransactionAccountId}
+                  onChange={(event) => setDraft((value) => ({ ...value, accountId: event.target.value }))}
+                  className="mt-2 w-full rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                >
+                  {cashAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <button
               onClick={addManualTransaction}
               disabled={!draft.description.trim() || !draft.amount || !draft.categoryId}
