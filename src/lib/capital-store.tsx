@@ -1310,7 +1310,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     .reduce((s, account) => s + account.balance, 0);
   const cardCashBalance = cardCashBaseBalance;
   const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
-  const currentBalance = cardCashBalance + safetyBalance;
+  const currentBalance = cardCashBalance + safetyBalance - monthExpenseTotal;
 
   return (
     <CapitalContext.Provider
