@@ -148,9 +148,11 @@ function BudgetPage() {
       .reduce((sum, account) => sum + account.balance, 0);
     if (primaryCardCashAccount) {
       updateCashAccount(primaryCardCashAccount.id, { name: "Карта / наличные", kind: "card", balance: nextBalance - otherBalance });
+      update({ cardCashExpenseBaseline: totals.monthExpenseTotal });
       return;
     }
     addCashAccount({ id: `ca_${Date.now()}`, name: "Карта / наличные", kind: "card", balance: nextBalance });
+    update({ cardCashExpenseBaseline: totals.monthExpenseTotal });
   };
 
   const setSafetyBalance = (nextBalance: number) => {

@@ -139,6 +139,8 @@ export interface ChangeEntry {
 
 interface CapitalState {
   cashBaselineVersion?: string;
+  cardCashExpenseBaseline?: number;
+  cardCashExpenseBaselineVersion?: string;
   assets: Asset[];
   targets: TargetAsset[];
   lifeGoals: LifeGoal[];
@@ -173,6 +175,7 @@ const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 const RESET_TOKEN = "2026-07-03-full-restore-from-id4";
 const RESET_TOKEN_KEY = "life-capital-reset-token";
 const CASH_BASELINE_VERSION = "2026-07-12-balance-baseline-38000-650000";
+const CARD_CASH_EXPENSE_BASELINE_VERSION = "2026-07-13-card-cash-current-after-existing-expenses";
 const CARD_CASH_BASELINE = 38_000;
 const SAFETY_BASELINE = 650_000;
 
@@ -306,6 +309,8 @@ const LIFE_AREAS_VERSION_KEY = "life-capital-life-areas-version";
 
 const defaultState: CapitalState = {
   cashBaselineVersion: CASH_BASELINE_VERSION,
+  cardCashExpenseBaseline: 0,
+  cardCashExpenseBaselineVersion: CARD_CASH_EXPENSE_BASELINE_VERSION,
   assets: [
     { id: "a1", name: "Квартира в Санкт-Петербурге", type: "real_estate", min: 10_500_000, estimated: 11_000_000, max: 11_500_000, status: "owned" },
     { id: "a2", name: "Коллекция LEGO", type: "collection", min: 1_200_000, estimated: 1_350_000, max: 1_500_000, status: "owned", identity: true },
@@ -582,8 +587,22 @@ const applyCashBaseline = (state: CapitalState): CapitalState => {
   return { ...state, cashAccounts: accounts, cashBaselineVersion: CASH_BASELINE_VERSION };
 };
 
+const currentMonthExpenseTotal = (state: Pick<CapitalState, "transactions">) => {
+  const monthKey = new Date().toISOString().slice(0, 7);
+  return (state.transactions ?? [])
+    .filter((transaction) => transaction.date.startsWith(monthKey) && transaction.type === "expense")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+};
+
+const applyCardCashExpenseBaseline = (state: CapitalState): CapitalState => ({
+  ...state,
+  cardCashExpenseBaseline: currentMonthExpenseTotal(state),
+  cardCashExpenseBaselineVersion: CARD_CASH_EXPENSE_BASELINE_VERSION,
+});
+
 const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined): CapitalState => {
   const shouldApplyCashBaseline = saved?.cashBaselineVersion !== CASH_BASELINE_VERSION;
+  const shouldApplyCardCashExpenseBaseline = saved?.cardCashExpenseBaselineVersion !== CARD_CASH_EXPENSE_BASELINE_VERSION;
   let merged = { ...defaultState, ...(saved ?? {}) } as CapitalState;
 
   for (const key of arrayStateKeys) {
@@ -607,6 +626,9 @@ const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined):
   }
   if (shouldApplyCashBaseline) {
     merged = applyCashBaseline(merged);
+  }
+  if (shouldApplyCardCashExpenseBaseline) {
+    merged = applyCardCashExpenseBaseline(merged);
   }
 
   return syncTransactionCategoriesWithExpenses(merged);
@@ -1308,7 +1330,9 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const cardCashBaseBalance = cashAccounts
     .filter((account) => account.kind === "card" || account.kind === "cash")
     .reduce((s, account) => s + account.balance, 0);
-  const cardCashBalance = cardCashBaseBalance - monthExpenseTotal;
+  const cardCashExpenseBaseline = Math.max(0, state.cardCashExpenseBaseline ?? 0);
+  const cardCashExpenseDelta = Math.max(0, monthExpenseTotal - cardCashExpenseBaseline);
+  const cardCashBalance = cardCashBaseBalance - cardCashExpenseDelta;
   const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
   const currentBalance = cardCashBalance + safetyBalance;
 
