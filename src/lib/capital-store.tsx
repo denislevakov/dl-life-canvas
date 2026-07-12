@@ -627,6 +627,29 @@ const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
   }
 };
 
+const isSettledIncomeTransaction = (transaction: MoneyTransaction) =>
+  transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID;
+
+const defaultIncomeAccountId = (state: CapitalState) =>
+  (state.cashAccounts ?? []).find((account) => account.kind === "card" || account.kind === "cash")?.id ??
+  (state.cashAccounts ?? [])[0]?.id ??
+  "";
+
+const incomeAccountId = (state: CapitalState, transaction: MoneyTransaction) =>
+  transaction.accountId || defaultIncomeAccountId(state);
+
+const applyAccountDelta = (state: CapitalState, accountId: string, delta: number): CapitalState => {
+  if (!accountId || delta === 0) return state;
+  const accounts = state.cashAccounts ?? [];
+  if (!accounts.some((account) => account.id === accountId)) return state;
+  return {
+    ...state,
+    cashAccounts: accounts.map((account) =>
+      account.id === accountId ? { ...account, balance: Math.round((account.balance + delta) * 100) / 100 } : account,
+    ),
+  };
+};
+
 interface Ctx {
   state: CapitalState;
   update: (patch: Partial<CapitalState>) => void;
@@ -1084,12 +1107,17 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     });
 
   const addTransaction = (transaction: MoneyTransaction) =>
-    commit((s) =>
-      pushLog(
-        { ...s, transactions: [transaction, ...(s.transactions ?? [])] },
-        [{ scope: "transaction", action: "add", entityId: transaction.id, entityName: transaction.description }],
-      ),
-    );
+    commit((s) => {
+      const accountId = isSettledIncomeTransaction(transaction) ? incomeAccountId(s, transaction) : transaction.accountId;
+      const nextTransaction = accountId ? { ...transaction, accountId } : transaction;
+      const next = { ...s, transactions: [nextTransaction, ...(s.transactions ?? [])] };
+      const withBalance = isSettledIncomeTransaction(nextTransaction) ? applyAccountDelta(next, accountId || "", nextTransaction.amount) : next;
+
+      return pushLog(
+        withBalance,
+        [{ scope: "transaction", action: "add", entityId: nextTransaction.id, entityName: nextTransaction.description }],
+      );
+    });
   const importTransactions = (transactions: MoneyTransaction[]) =>
     commit((s) => {
       if (!transactions.length) return s;
@@ -1119,19 +1147,33 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const cur = transactions.find((transaction) => transaction.id === id);
       if (!cur) return s;
       const diffs = diffPatch(cur as unknown as Record<string, unknown>, patch as Partial<Record<string, unknown>>);
-      const nextTransaction = { ...cur, ...patch };
-      const next = {
+      const nextDraft = { ...cur, ...patch };
+      const nextAccountId = isSettledIncomeTransaction(nextDraft) ? incomeAccountId(s, nextDraft) : nextDraft.accountId;
+      const nextTransaction = nextAccountId ? { ...nextDraft, accountId: nextAccountId } : nextDraft;
+      let next: CapitalState = {
         ...s,
         transactions: transactions.map((transaction) => (transaction.id === id ? nextTransaction : transaction)),
       };
+
+      if (isSettledIncomeTransaction(cur)) {
+        next = applyAccountDelta(next, incomeAccountId(s, cur), -cur.amount);
+      }
+      if (isSettledIncomeTransaction(nextTransaction)) {
+        next = applyAccountDelta(next, incomeAccountId(next, nextTransaction), nextTransaction.amount);
+      }
+
       return pushLog(next, diffs.map((d) => ({ scope: "transaction", action: "update", entityId: id, entityName: cur.description, ...d })));
     });
   const removeTransaction = (id: string) =>
     commit((s) => {
       const transactions = s.transactions ?? [];
       const cur = transactions.find((transaction) => transaction.id === id);
+      let next: CapitalState = { ...s, transactions: transactions.filter((transaction) => transaction.id !== id) };
+      if (cur && isSettledIncomeTransaction(cur)) {
+        next = applyAccountDelta(next, incomeAccountId(s, cur), -cur.amount);
+      }
       return pushLog(
-        { ...s, transactions: transactions.filter((transaction) => transaction.id !== id) },
+        next,
         [{ scope: "transaction", action: "remove", entityId: id, entityName: cur?.description }],
       );
     });
@@ -1263,22 +1305,11 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const monthIncomeTotal = monthTransactions
     .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
     .reduce((s, transaction) => s + transaction.amount, 0);
-  const cardCashAccountIds = new Set(cashAccounts.filter((account) => account.kind === "card" || account.kind === "cash").map((account) => account.id));
-  const safetyAccountIds = new Set(cashAccounts.filter((account) => account.kind === "safety").map((account) => account.id));
-  const defaultTransactionAccountId = cashAccounts.find((account) => account.kind === "card" || account.kind === "cash")?.id ?? cashAccounts[0]?.id ?? "";
-  const transactionDeltaForAccounts = (accountIds: Set<string>) =>
-    monthTransactions.reduce((sum, transaction) => {
-      if (transaction.type === "income" && transaction.categoryId === REVIEW_CATEGORY_ID) return sum;
-      const accountId = transaction.type === "expense" ? defaultTransactionAccountId : transaction.accountId || defaultTransactionAccountId;
-      if (!accountId || !accountIds.has(accountId)) return sum;
-      return sum + (transaction.type === "income" ? transaction.amount : -transaction.amount);
-    }, 0);
   const cardCashBaseBalance = cashAccounts
     .filter((account) => account.kind === "card" || account.kind === "cash")
     .reduce((s, account) => s + account.balance, 0);
-  const cardCashBalance = cardCashBaseBalance + transactionDeltaForAccounts(cardCashAccountIds);
-  const safetyBalance =
-    cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0) + transactionDeltaForAccounts(safetyAccountIds);
+  const cardCashBalance = cardCashBaseBalance;
+  const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
   const currentBalance = cardCashBalance + safetyBalance;
 
   return (
