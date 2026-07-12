@@ -615,7 +615,7 @@ function BudgetPage() {
             >
               {cashAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} · {formatRub(account.balance)}
+                  {account.name}
                 </option>
               ))}
             </select>
@@ -629,7 +629,7 @@ function BudgetPage() {
             >
               {cashAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} · {formatRub(account.balance)}
+                  {account.name}
                 </option>
               ))}
             </select>
