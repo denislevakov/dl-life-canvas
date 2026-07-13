@@ -74,7 +74,7 @@ function EmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
 function GoalsPage() {
   const { state, update, addLifeGoal, updateLifeGoal, removeLifeGoal } = useCapital();
   const goals = state.lifeGoals ?? [];
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("active");
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [draggedGoalId, setDraggedGoalId] = useState<string | null>(null);
   const [backlogTitle, setBacklogTitle] = useState("");
