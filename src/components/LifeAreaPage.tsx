@@ -55,12 +55,44 @@ const inferSkillType = (area: LifeArea): LifeAreaSkillType => {
   return "hard";
 };
 
+const orderActionsByStatus = (actions: LifeAreaAction[]) => [
+  ...actions.filter((action) => action.status !== "done"),
+  ...actions.filter((action) => action.status === "done"),
+];
+
+const getActionDeadlineTime = (action: LifeAreaAction) => {
+  if (!action.deadline) return Number.POSITIVE_INFINITY;
+  const time = new Date(`${action.deadline}T00:00:00`).getTime();
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+};
+
+const orderActionsAfterStatusToggle = (actions: LifeAreaAction[], actionId: string, wasDone: boolean) => {
+  const activeActions = actions.filter((action) => action.status !== "done");
+  const doneActions = actions.filter((action) => action.status === "done");
+
+  if (wasDone) {
+    const sortedActiveActions = activeActions
+      .map((action, index) => ({ action, index }))
+      .sort((left, right) => getActionDeadlineTime(left.action) - getActionDeadlineTime(right.action) || left.index - right.index)
+      .map(({ action }) => action);
+    return [...sortedActiveActions, ...doneActions];
+  }
+
+  const toggledAction = doneActions.find((action) => action.id === actionId);
+  return [
+    ...activeActions,
+    ...doneActions.filter((action) => action.id !== actionId),
+    ...(toggledAction ? [toggledAction] : []),
+  ];
+};
+
 export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, emptyTitle }: LifeAreaPageProps) {
   const { state, update, addLifeArea, updateLifeArea, removeLifeArea } = useCapital();
   const [filter, setFilter] = useState<Filter>("all");
   const [skillFilter, setSkillFilter] = useState<SkillFilter>("all");
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
+  const [expandedActionAreaIds, setExpandedActionAreaIds] = useState<string[]>([]);
   const [draggedAreaId, setDraggedAreaId] = useState<string | null>(null);
   const [draggedAction, setDraggedAction] = useState<{ areaId: string; actionId: string } | null>(null);
   const [draft, setDraft] = useState({ title: "", horizon: String(new Date().getFullYear()), description: "", skillType: "hard" as LifeAreaSkillType });
@@ -139,6 +171,19 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
   const removeAction = (area: LifeArea, actionId: string) => {
     updateLifeArea(area.id, { actions: (area.actions ?? []).filter((action) => action.id !== actionId) });
+  };
+
+  const toggleActionStatus = (area: LifeArea, actionId: string) => {
+    const currentActions = area.actions ?? [];
+    const wasDone = currentActions.find((action) => action.id === actionId)?.status === "done";
+    const actions = currentActions.map((action) =>
+      action.id === actionId ? { ...action, status: action.status === "done" ? "active" : "done" } : action,
+    );
+    updateLifeArea(area.id, { actions: orderActionsAfterStatusToggle(actions, actionId, wasDone) });
+  };
+
+  const toggleActionList = (areaId: string) => {
+    setExpandedActionAreaIds((ids) => (ids.includes(areaId) ? ids.filter((id) => id !== areaId) : [...ids, areaId]));
   };
 
   const reorderActions = (area: LifeArea, sourceId: string, targetId: string, options?: { keepDragging?: boolean }) => {
@@ -295,6 +340,10 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
           {visibleAreas.map((area) => {
             const isEditing = editingAreaId === area.id;
             const openActions = (area.actions ?? []).filter((action) => action.status === "active").length;
+            const orderedActions = orderActionsByStatus(area.actions ?? []);
+            const isActionListExpanded = expandedActionAreaIds.includes(area.id);
+            const visibleActions = isActionListExpanded ? orderedActions : orderedActions.slice(0, 4);
+            const hiddenActionsCount = Math.max(orderedActions.length - visibleActions.length, 0);
 
             return (
               <article
@@ -510,10 +559,11 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                 ) : (
                   <>
                     <div className="mt-4 text-sm leading-6 text-muted-foreground">{area.description || "Описание не добавлено"}</div>
-                    {(area.actions ?? []).length ? (
+                    {orderedActions.length ? (
                       <div className="mt-5 space-y-2">
-                        {(area.actions ?? []).map((action) => {
+                        {visibleActions.map((action) => {
                           const isExpanded = expandedActionId === action.id;
+                          const isDone = action.status === "done";
                           return (
                             <div
                               key={action.id}
@@ -536,18 +586,36 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                                 >
                                   <GripVertical className="h-4 w-4" />
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
-                                  className="flex min-h-11 flex-1 flex-wrap items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-elevated)]/60"
-                                >
-                                  <div className="min-w-0 flex-1 text-sm text-foreground">{action.title}</div>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span>{formatDeadline(action.deadline)}</span>
-                                    <StatusBadge status={action.status} />
-                                    <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isExpanded ? "rotate-180 text-[color:var(--gold)]" : "")} />
-                                  </div>
-                                </button>
+                                <div className="flex min-h-11 flex-1 flex-wrap items-center justify-between gap-2 px-3 py-2 transition-colors hover:bg-[color:var(--surface-elevated)]/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedActionId(isExpanded ? null : action.id)}
+                                    className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 text-left"
+                                  >
+                                    <div className="min-w-0 flex-1 text-sm text-foreground">{action.title}</div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <span>{formatDeadline(action.deadline)}</span>
+                                      <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isExpanded ? "rotate-180 text-[color:var(--gold)]" : "")} />
+                                    </div>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleActionStatus(area, action.id);
+                                    }}
+                                    className={
+                                      "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors " +
+                                      (isDone
+                                        ? "border-[color:oklch(0.4_0.06_160)] bg-[color:oklch(0.3_0.06_160)] text-[color:oklch(0.85_0.1_160)]"
+                                        : "border-border text-muted-foreground hover:border-[color:var(--gold)]/60 hover:text-[color:var(--gold)]")
+                                    }
+                                    title={isDone ? "Вернуть в работу" : "Отметить выполненным"}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    {isDone ? "Выполнено" : "В работе"}
+                                  </button>
+                                </div>
                               </div>
                               {isExpanded ? (
                                 <div className="border-t border-border px-3 py-3">
@@ -560,6 +628,15 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                             </div>
                           );
                         })}
+                        {orderedActions.length > 4 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleActionList(area.id)}
+                            className="w-full rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-[color:var(--gold)]/60 hover:text-[color:var(--gold)]"
+                          >
+                            {isActionListExpanded ? "Свернуть" : `Показать еще ${hiddenActionsCount}`}
+                          </button>
+                        ) : null}
                       </div>
                     ) : (
                       <div className="mt-5 rounded-lg border border-dashed border-border py-5 text-center text-sm text-muted-foreground">
