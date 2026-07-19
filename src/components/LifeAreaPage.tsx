@@ -86,6 +86,17 @@ const orderActionsAfterStatusToggle = (actions: LifeAreaAction[], actionId: stri
   ];
 };
 
+const moveAction = (actions: LifeAreaAction[], sourceId: string, targetId: string) => {
+  if (sourceId === targetId) return null;
+  const nextActions = [...actions];
+  const sourceIndex = nextActions.findIndex((action) => action.id === sourceId);
+  const targetIndex = nextActions.findIndex((action) => action.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0) return null;
+  const [moved] = nextActions.splice(sourceIndex, 1);
+  nextActions.splice(targetIndex, 0, moved);
+  return nextActions;
+};
+
 export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, emptyTitle }: LifeAreaPageProps) {
   const { state, update, addLifeArea, updateLifeArea, removeLifeArea } = useCapital();
   const [filter, setFilter] = useState<Filter>("all");
@@ -99,14 +110,33 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
 
   useEffect(() => {
     if (!draggedAction) return;
+
+    const moveDragging = (event: PointerEvent) => {
+      const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+      const actionElement = targetElement?.closest("[data-life-action-id][data-life-area-id]") as HTMLElement | null;
+      const areaId = actionElement?.dataset.lifeAreaId;
+      const targetId = actionElement?.dataset.lifeActionId;
+      if (!areaId || !targetId || areaId !== draggedAction.areaId || targetId === draggedAction.actionId) return;
+
+      const area = (state.lifeAreas ?? []).find((item) => item.id === areaId);
+      if (!area) return;
+      const actions = moveAction(area.actions ?? [], draggedAction.actionId, targetId);
+      if (!actions) return;
+
+      event.preventDefault();
+      updateLifeArea(area.id, { actions });
+    };
+
     const stopDragging = () => setDraggedAction(null);
+    window.addEventListener("pointermove", moveDragging, { passive: false });
     window.addEventListener("pointerup", stopDragging);
     window.addEventListener("pointercancel", stopDragging);
     return () => {
+      window.removeEventListener("pointermove", moveDragging);
       window.removeEventListener("pointerup", stopDragging);
       window.removeEventListener("pointercancel", stopDragging);
     };
-  }, [draggedAction]);
+  }, [draggedAction, state.lifeAreas, updateLifeArea]);
 
   const areas = useMemo(() => (state.lifeAreas ?? []).filter((area) => area.kind === kind), [kind, state.lifeAreas]);
 
@@ -187,13 +217,8 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   };
 
   const reorderActions = (area: LifeArea, sourceId: string, targetId: string, options?: { keepDragging?: boolean }) => {
-    if (sourceId === targetId) return;
-    const actions = [...(area.actions ?? [])];
-    const sourceIndex = actions.findIndex((action) => action.id === sourceId);
-    const targetIndex = actions.findIndex((action) => action.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
-    const [moved] = actions.splice(sourceIndex, 1);
-    actions.splice(targetIndex, 0, moved);
+    const actions = moveAction(area.actions ?? [], sourceId, targetId);
+    if (!actions) return;
     updateLifeArea(area.id, { actions });
     if (!options?.keepDragging) setDraggedAction(null);
   };
@@ -472,6 +497,8 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                       {(area.actions ?? []).map((action) => (
                         <div
                           key={action.id}
+                          data-life-area-id={area.id}
+                          data-life-action-id={action.id}
                           onPointerEnter={() => reorderActionOnEnter(area, action.id)}
                           className={
                             "rounded-lg border border-border bg-background/55 p-3 transition-opacity " +
@@ -483,6 +510,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                               onPointerDown={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
+                                event.currentTarget.setPointerCapture?.(event.pointerId);
                                 setDraggedAction({ areaId: area.id, actionId: action.id });
                               }}
                               className="inline-flex h-10 w-10 cursor-grab touch-none select-none items-center justify-center rounded-md border border-border text-muted-foreground active:cursor-grabbing"
@@ -567,6 +595,8 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                           return (
                             <div
                               key={action.id}
+                              data-life-area-id={area.id}
+                              data-life-action-id={action.id}
                               onPointerEnter={() => reorderActionOnEnter(area, action.id)}
                               className={
                                 "rounded-lg border border-border bg-background/55 transition-opacity " +
@@ -578,6 +608,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                                   onPointerDown={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
+                                    event.currentTarget.setPointerCapture?.(event.pointerId);
                                     setDraggedAction({ areaId: area.id, actionId: action.id });
                                   }}
                                   onClick={(event) => event.stopPropagation()}
