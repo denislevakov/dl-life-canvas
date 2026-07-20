@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import type { TransactionCategory } from "./lib/capital-store";
+import type { FinanceAssistantRule, FinanceTransactionExample } from "./lib/finance-categorization";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -46,6 +47,8 @@ async function handlePdfParseRequest(request: Request): Promise<Response> {
   const formData = await request.formData();
   const file = formData.get("file");
   const categoriesRaw = formData.get("categories");
+  const examplesRaw = formData.get("examples");
+  const rulesRaw = formData.get("rules");
 
   if (!(file instanceof File)) {
     return jsonResponse({ message: "PDF-файл не найден" }, { status: 400 });
@@ -56,15 +59,22 @@ async function handlePdfParseRequest(request: Request): Promise<Response> {
   }
 
   let categories: TransactionCategory[] = [];
+  let examples: FinanceTransactionExample[] = [];
+  let rules: FinanceAssistantRule[] = [];
   try {
-    categories = typeof categoriesRaw === "string" ? JSON.parse(categoriesRaw) : [];
+    const parsedCategories = typeof categoriesRaw === "string" ? JSON.parse(categoriesRaw) : [];
+    const parsedExamples = typeof examplesRaw === "string" ? JSON.parse(examplesRaw) : [];
+    const parsedRules = typeof rulesRaw === "string" ? JSON.parse(rulesRaw) : [];
+    categories = Array.isArray(parsedCategories) ? parsedCategories : [];
+    examples = Array.isArray(parsedExamples) ? parsedExamples.slice(0, 1000) : [];
+    rules = Array.isArray(parsedRules) ? parsedRules.slice(0, 500) : [];
   } catch {
     return jsonResponse({ message: "Не удалось прочитать список категорий" }, { status: 400 });
   }
 
   try {
-    const { parseBankPdf } = await import("./lib/pdf-bank-parser");
-    const result = await parseBankPdf(file, categories);
+    const { parseBankPdf } = await import("./lib/pdf-bank-parser-v2");
+    const result = await parseBankPdf(file, categories, { examples, rules });
     return jsonResponse(result);
   } catch (error) {
     console.error("PDF parse failed", error instanceof Error ? error.message : error);

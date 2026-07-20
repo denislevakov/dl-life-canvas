@@ -10,6 +10,13 @@ import { formatRub } from "@/lib/format";
 type ParsedPdfResult = {
   transactions: MoneyTransaction[];
   textPreview?: string;
+  classification?: {
+    autoClassified: number;
+    ruleMatches: number;
+    historyMatches: number;
+    keywordMatches: number;
+    needsReview: number;
+  };
 };
 
 export const Route = createFileRoute("/budget")({
@@ -254,6 +261,16 @@ function BudgetPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("categories", JSON.stringify(categories));
+      formData.append(
+        "examples",
+        JSON.stringify(
+          transactions
+            .filter((transaction) => transaction.source === "pdf" && transaction.categoryId !== REVIEW_CATEGORY_ID)
+            .slice(0, 1000)
+            .map(({ description, type, categoryId }) => ({ description, type, categoryId })),
+        ),
+      );
+      formData.append("rules", JSON.stringify(state.financeAssistantRules ?? []));
 
       const response = await fetch("/api/parse-bank-pdf", {
         method: "POST",
@@ -270,7 +287,11 @@ function BudgetPage() {
         return;
       }
       importTransactions(result.transactions);
-      setImportMessage(`Импортировано операций: ${result.transactions.length}. Распределение обновилось в статьях расходов.`);
+      const autoClassified = result.classification?.autoClassified ?? result.transactions.filter((transaction) => transaction.categoryId !== REVIEW_CATEGORY_ID).length;
+      const needsReview = result.classification?.needsReview ?? result.transactions.length - autoClassified;
+      setImportMessage(
+        "Распознано операций: " + result.transactions.length + ". Автоматически распределено: " + autoClassified + ". Нужно проверить: " + needsReview + ". Дубли при повторной загрузке пропускаются.",
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : "неизвестная ошибка";
       setImportMessage(`Не удалось прочитать PDF: ${detail}`);

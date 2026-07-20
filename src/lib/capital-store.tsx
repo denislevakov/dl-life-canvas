@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
+import {
+  createFinanceAssistantRule,
+  type FinanceAssistantRule,
+} from "@/lib/finance-categorization";
 import { supabase } from "@/lib/supabase";
+
+export type { FinanceAssistantRule } from "@/lib/finance-categorization";
 
 export type AssetType = "real_estate" | "collection" | "vehicle" | "cash" | "other";
 export type AssetStatus = "owned" | "idea" | "planned" | "in_progress" | "purchased";
@@ -149,6 +155,7 @@ interface CapitalState {
   cashAccounts: CashAccount[];
   transactionCategories: TransactionCategory[];
   transactions: MoneyTransaction[];
+  financeAssistantRules: FinanceAssistantRule[];
   incomeSources: IncomeSource[];
   stages: LifeStage[];
   incomeScenarios: number[];
@@ -257,6 +264,9 @@ const syncTransactionCategoriesWithExpenses = (state: CapitalState): CapitalStat
       const categoryId = remap[transaction.categoryId] ?? (nextIds.has(transaction.categoryId) ? transaction.categoryId : REVIEW_CATEGORY_ID);
       return categoryId === transaction.categoryId ? transaction : { ...transaction, categoryId };
     }),
+    financeAssistantRules: (state.financeAssistantRules ?? [])
+      .map((rule) => ({ ...rule, categoryId: remap[rule.categoryId] ?? rule.categoryId }))
+      .filter((rule) => nextIds.has(rule.categoryId)),
   };
 };
 
@@ -480,6 +490,7 @@ const defaultState: CapitalState = {
   ],
   transactionCategories: defaultTransactionCategories,
   transactions: [],
+  financeAssistantRules: [],
   incomeSources: [],
   stages: [
     {
@@ -549,6 +560,7 @@ const arrayStateKeys = [
   "cashAccounts",
   "transactionCategories",
   "transactions",
+  "financeAssistantRules",
   "incomeSources",
   "stages",
   "incomeScenarios",
@@ -1172,8 +1184,26 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       const nextDraft = { ...cur, ...patch };
       const nextAccountId = isSettledIncomeTransaction(nextDraft) ? incomeAccountId(s, nextDraft) : nextDraft.accountId;
       const nextTransaction = nextAccountId ? { ...nextDraft, accountId: nextAccountId } : nextDraft;
+      const category = (s.transactionCategories ?? []).find((candidate) => candidate.id === nextTransaction.categoryId);
+      const learnedRule =
+        nextTransaction.source === "pdf" &&
+        nextTransaction.type === "expense" &&
+        nextTransaction.categoryId !== REVIEW_CATEGORY_ID &&
+        nextTransaction.categoryId !== cur.categoryId &&
+        category
+          ? createFinanceAssistantRule(nextTransaction.description, nextTransaction.type, category)
+          : null;
+      const financeAssistantRules = learnedRule
+        ? [
+            learnedRule,
+            ...(s.financeAssistantRules ?? []).filter(
+              (rule) => !(rule.match === "fingerprint" && rule.type === learnedRule.type && rule.pattern === learnedRule.pattern),
+            ),
+          ].slice(0, 500)
+        : (s.financeAssistantRules ?? []);
       let next: CapitalState = {
         ...s,
+        financeAssistantRules,
         transactions: transactions.map((transaction) => (transaction.id === id ? nextTransaction : transaction)),
       };
 
