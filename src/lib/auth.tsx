@@ -61,20 +61,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
+    const loadingTimeout = window.setTimeout(() => {
       if (!mounted) return;
-      setSession(data.session);
       setLoading(false);
-    });
+    }, 5_000);
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
+      window.clearTimeout(loadingTimeout);
       setSession(nextSession);
       setLoading(false);
     });
 
     return () => {
       mounted = false;
+      window.clearTimeout(loadingTimeout);
       subscription.subscription.unsubscribe();
     };
   }, []);
@@ -98,6 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (email === OWNER_EMAIL) {
+      setAccessLoading(false);
+      setAccessChecked(true);
+      setApproved(true);
+      setAccessError(null);
+      return;
+    }
+
     setAccessLoading(true);
     setAccessChecked(false);
     setApproved(false);
@@ -116,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!error) {
           if (!mounted) return;
-          setApproved(email === OWNER_EMAIL || Boolean(data?.email));
+          setApproved(Boolean(data?.email));
           setAccessError(null);
           setAccessChecked(true);
           setAccessLoading(false);
@@ -125,9 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!mounted) return;
-      const isOwner = email === OWNER_EMAIL;
-      setApproved(isOwner);
-      setAccessError(isOwner ? null : "Не удалось проверить доступ. Попробуйте обновить страницу.");
+      setApproved(false);
+      setAccessError("Не удалось проверить доступ. Попробуйте обновить страницу.");
       setAccessChecked(true);
       setAccessLoading(false);
     };
