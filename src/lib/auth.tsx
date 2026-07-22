@@ -20,10 +20,13 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const OWNER_EMAIL = "denlevakov@gmail.com";
+const ACCESS_CHECK_RETRY_DELAYS_MS = [0, 400, 1_000];
 
 const authUnavailable = (): AuthResult => ({
   ok: false,
-  message: "Supabase пока не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY на сервере.",
+  message:
+    "Supabase пока не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY на сервере.",
 });
 
 const openOverview = () => {
@@ -37,7 +40,8 @@ const humanizeAuthError = (message?: string) => {
   const normalized = message.toLowerCase();
   if (normalized.includes("invalid login credentials")) return "Неверный email или пароль.";
   if (normalized.includes("email not confirmed")) return "Email еще не подтвержден.";
-  if (normalized.includes("user already registered")) return "Пользователь с таким email уже зарегистрирован.";
+  if (normalized.includes("user already registered"))
+    return "Пользователь с таким email уже зарегистрирован.";
   if (normalized.includes("password")) return "Пароль должен соответствовать требованиям Supabase.";
   return message;
 };
@@ -75,7 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-
   useEffect(() => {
     if (!session || !supabase) {
       setAccessLoading(false);
@@ -97,20 +100,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setAccessLoading(true);
     setAccessChecked(false);
+    setApproved(false);
     setAccessError(null);
 
-    supabase
-      .from("approved_emails")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    const checkApprovedAccess = async () => {
+      for (const delay of ACCESS_CHECK_RETRY_DELAYS_MS) {
+        if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
         if (!mounted) return;
-        setApproved(Boolean(data?.email));
-        setAccessError(error ? "Не удалось проверить доступ. Попробуйте обновить страницу." : null);
-        setAccessChecked(true);
-        setAccessLoading(false);
-      });
+
+        const { data, error } = await supabase
+          .from("approved_emails")
+          .select("email")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (!error) {
+          if (!mounted) return;
+          setApproved(email === OWNER_EMAIL || Boolean(data?.email));
+          setAccessError(null);
+          setAccessChecked(true);
+          setAccessLoading(false);
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      const isOwner = email === OWNER_EMAIL;
+      setApproved(isOwner);
+      setAccessError(isOwner ? null : "Не удалось проверить доступ. Попробуйте обновить страницу.");
+      setAccessChecked(true);
+      setAccessLoading(false);
+    };
+
+    void checkApprovedAccess();
 
     return () => {
       mounted = false;
@@ -135,7 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       },
       async signUp() {
-        return { ok: false, message: "Регистрация закрыта. Доступ выдает владелец сайта после одобрения email." };
+        return {
+          ok: false,
+          message: "Регистрация закрыта. Доступ выдает владелец сайта после одобрения email.",
+        };
       },
       async signOut() {
         if (!supabase) return;
