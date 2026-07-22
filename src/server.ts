@@ -153,6 +153,24 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+async function normalizeHtmlNullBytes(response: Response): Promise<Response> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/html")) return response;
+
+  const body = await response.clone().text();
+  if (!body.includes("\0")) return response;
+
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+
+  return new Response(body.replaceAll("\0", "\\u0000"), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
@@ -166,7 +184,8 @@ export default {
 
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalizedResponse = await normalizeCatastrophicSsrResponse(response);
+      return await normalizeHtmlNullBytes(normalizedResponse);
     } catch (error) {
       console.error(error);
       return brandedErrorResponse();
