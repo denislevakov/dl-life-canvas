@@ -7,11 +7,57 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/AppShell";
 import { AuthGate } from "@/components/AuthGate";
 import { AuthProvider } from "@/lib/auth";
+
+declare global {
+  interface Window {
+    __gugentusBootReport?: (stage: string, detail?: string) => void;
+    __gugentusReactReady?: boolean;
+  }
+}
+
+const clientBootScript = `
+(function () {
+  var reported = {};
+  function report(stage, detail) {
+    var safeDetail = typeof detail === "string" ? detail.slice(0, 500) : "";
+    var key = stage + ":" + safeDetail;
+    if (reported[key]) return;
+    reported[key] = true;
+    var body = JSON.stringify({ stage: stage, detail: safeDetail });
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon("/__client-boot", new Blob([body], { type: "application/json" }));
+        return;
+      }
+      fetch("/__client-boot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: body,
+        keepalive: true
+      }).catch(function () {});
+    } catch (_) {}
+  }
+  window.__gugentusBootReport = report;
+  report("html-ready");
+  window.addEventListener("error", function (event) {
+    var detail = event && event.message ? event.message : "resource-load-error";
+    report("window-error", detail);
+  }, true);
+  window.addEventListener("unhandledrejection", function (event) {
+    var reason = event && event.reason;
+    var detail = reason && reason.message ? reason.message : String(reason || "unknown-rejection");
+    report("promise-rejection", detail);
+  });
+  window.setTimeout(function () {
+    if (!window.__gugentusReactReady) report("react-timeout", "React did not mount within 8 seconds");
+  }, 8000);
+})();`;
 
 function NotFoundComponent() {
   return (
@@ -76,17 +122,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "LIFE IS GOOD — Дашборд жизни" },
-      { name: "description", content: "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни." },
+      {
+        name: "description",
+        content:
+          "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "LIFE IS GOOD — Дашборд жизни" },
-      { property: "og:description", content: "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни." },
+      {
+        property: "og:description",
+        content:
+          "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "LIFE IS GOOD — Дашборд жизни" },
-      { name: "twitter:description", content: "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e14d2dba-6401-45d2-9531-587d868e6b47/id-preview-d2bf0f8a--86d5f5b5-2043-46ec-b45c-6c484799f3b3.lovable.app-1779697609412.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e14d2dba-6401-45d2-9531-587d868e6b47/id-preview-d2bf0f8a--86d5f5b5-2043-46ec-b45c-6c484799f3b3.lovable.app-1779697609412.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Дашборд управления жизненным капиталом: активы, доходы, расходы и стратегия до конца жизни.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e14d2dba-6401-45d2-9531-587d868e6b47/id-preview-d2bf0f8a--86d5f5b5-2043-46ec-b45c-6c484799f3b3.lovable.app-1779697609412.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e14d2dba-6401-45d2-9531-587d868e6b47/id-preview-d2bf0f8a--86d5f5b5-2043-46ec-b45c-6c484799f3b3.lovable.app-1779697609412.png",
+      },
     ],
     links: [
       {
@@ -95,7 +161,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -111,6 +180,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: clientBootScript }} />
         {children}
         <Scripts />
       </body>
@@ -120,6 +190,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    window.__gugentusReactReady = true;
+    window.__gugentusBootReport?.("react-mounted");
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

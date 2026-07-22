@@ -23,6 +23,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const OWNER_EMAIL = "denlevakov@gmail.com";
 const ACCESS_CHECK_RETRY_DELAYS_MS = [0, 400, 1_000];
 
+const reportClientBoot = (stage: string, detail?: string) => {
+  if (typeof window !== "undefined") {
+    window.__gugentusBootReport?.(stage, detail);
+  }
+};
+
 const authUnavailable = (): AuthResult => ({
   ok: false,
   message:
@@ -55,7 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessError, setAccessError] = useState<string | null>(null);
 
   useEffect(() => {
+    reportClientBoot("auth-provider-mounted");
     if (!supabase) {
+      reportClientBoot("supabase-not-configured");
       setLoading(false);
       return;
     }
@@ -63,11 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     const loadingTimeout = window.setTimeout(() => {
       if (!mounted) return;
+      reportClientBoot("auth-session-timeout");
       setLoading(false);
     }, 5_000);
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
+      reportClientBoot("auth-state-ready", event);
       window.clearTimeout(loadingTimeout);
       setSession(nextSession);
       setLoading(false);
@@ -100,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (email === OWNER_EMAIL) {
+      reportClientBoot("owner-access-approved");
       setAccessLoading(false);
       setAccessChecked(true);
       setApproved(true);

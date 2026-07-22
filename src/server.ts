@@ -11,12 +11,14 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 const PDF_PARSE_PATH = "/api/parse-bank-pdf";
+const CLIENT_BOOT_PATH = "/__client-boot";
 const MAX_PDF_SIZE = 15 * 1024 * 1024;
+const MAX_CLIENT_BOOT_BODY_SIZE = 2_048;
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => ((m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry)),
+      (m) => (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry),
     );
   }
   return serverEntryPromise;
@@ -83,6 +85,33 @@ async function handlePdfParseRequest(request: Request): Promise<Response> {
   }
 }
 
+async function handleClientBootRequest(request: Request): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response(null, { status: 405 });
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_CLIENT_BOOT_BODY_SIZE) {
+    return new Response(null, { status: 413 });
+  }
+
+  try {
+    const body = (await request.json()) as { stage?: unknown; detail?: unknown };
+    const stage =
+      typeof body.stage === "string"
+        ? body.stage.replace(/[^a-z0-9-]/gi, "").slice(0, 48)
+        : "unknown";
+    const detail =
+      typeof body.detail === "string" ? body.detail.replace(/[\r\n\t]+/g, " ").slice(0, 500) : "";
+
+    console.info(`[client-boot] ${stage}${detail ? `: ${detail}` : ""}`);
+  } catch {
+    console.info("[client-boot] invalid-report");
+  }
+
+  return new Response(null, { status: 204 });
+}
+
 function isCatastrophicSsrErrorBody(body: string, responseStatus: number): boolean {
   let payload: unknown;
   try {
@@ -130,6 +159,9 @@ export default {
       const url = new URL(request.url);
       if (url.pathname === PDF_PARSE_PATH) {
         return await handlePdfParseRequest(request);
+      }
+      if (url.pathname === CLIENT_BOOT_PATH) {
+        return await handleClientBootRequest(request);
       }
 
       const handler = await getServerEntry();
