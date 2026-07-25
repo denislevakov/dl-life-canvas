@@ -22,6 +22,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 const OWNER_EMAIL = "denlevakov@gmail.com";
 const ACCESS_CHECK_RETRY_DELAYS_MS = [0, 400, 1_000];
+const SESSION_RESTORE_TIMEOUT_MS = 60_000;
+const SIGN_IN_TIMEOUT_MS = 30_000;
 
 const reportClientBoot = (stage: string, detail?: string) => {
   if (typeof window !== "undefined") {
@@ -46,11 +48,36 @@ const humanizeAuthError = (message?: string) => {
   const normalized = message.toLowerCase();
   if (normalized.includes("invalid login credentials")) return "Неверный email или пароль.";
   if (normalized.includes("email not confirmed")) return "Email еще не подтвержден.";
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("load failed") ||
+    normalized.includes("network") ||
+    normalized.includes("timed out") ||
+    normalized.includes("timeout")
+  ) {
+    return "Не удалось связаться с сервером входа. Проверьте интернет и попробуйте еще раз.";
+  }
   if (normalized.includes("user already registered"))
     return "Пользователь с таким email уже зарегистрирован.";
   if (normalized.includes("password")) return "Пароль должен соответствовать требованиям Supabase.";
   return message;
 };
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(
+      () => reject(new Error("Authentication request timed out")),
+      timeoutMs,
+    );
+  });
+
+  try {
+    return await Promise.race([Promise.resolve(promise), timeout]);
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -73,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       reportClientBoot("auth-session-timeout");
       setLoading(false);
-    }, 5_000);
+    }, SESSION_RESTORE_TIMEOUT_MS);
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
@@ -170,10 +197,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       configured: isSupabaseConfigured,
       async signIn(email, password) {
         if (!supabase) return authUnavailable();
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) return { ok: false, message: humanizeAuthError(error.message) };
-        openOverview();
-        return { ok: true };
+        reportClientBoot("auth-sign-in-started");
+
+        try {
+          const { data, error } = await withTimeout(
+            supabase.auth.signInWithPassword({ email, password }),
+            SIGN_IN_TIMEOUT_MS,
+          );
+          if (error) {
+            reportClientBoot("auth-sign-in-error", error.code ?? error.message);
+            return { ok: false, message: humanizeAuthError(error.message) };
+          }
+
+          if (!data.session) {
+            reportClientBoot("auth-sign-in-no-session");
+            return { ok: false, message: "Сервер не вернул сессию. Попробуйте войти еще раз." };
+          }
+
+          setSession(data.session);
+          setLoading(false);
+          reportClientBoot("auth-sign-in-success");
+          openOverview();
+          return { ok: true };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : undefined;
+          reportClientBoot("auth-sign-in-exception", message);
+          return { ok: false, message: humanizeAuthError(message) };
+        }
       },
       async signUp() {
         return {

@@ -32,6 +32,8 @@ export function AuthScreen() {
         return;
       }
       if (result.message) setMessage(result.message);
+    } catch {
+      setError("Не удалось выполнить вход. Проверьте интернет и попробуйте еще раз.");
     } finally {
       setSubmitting(false);
     }
@@ -72,6 +74,11 @@ export function AuthScreen() {
                     <input
                       type="email"
                       autoComplete="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      inputMode="email"
+                      enterKeyHint="next"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -87,6 +94,10 @@ export function AuthScreen() {
                     <input
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      enterKeyHint="go"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
