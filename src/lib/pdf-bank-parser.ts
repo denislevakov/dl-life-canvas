@@ -72,7 +72,7 @@ const categoryForText = (text: string, categories: TransactionCategory[]) => {
   if (/склад|storage|хранени/.test(lower)) return find("cat_expense_e9", /склад|хранени/);
   if (/фитнес|fitness|gym|спортзал|зал/.test(lower)) return find("cat_expense_e10", /фитнес|спортзал/);
   if (/клининг|cleaning|уборк/.test(lower)) return find("cat_expense_e11", /клининг|уборк/);
-  if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return findById("cat_income") || findByName(/доход/);
+  if (/зачисление|поступление|salary|зарплат|перевод от|income/.test(lower)) return findById("cat_income_misc") || findByName(/всяко|доход/);
   return findById(REVIEW_CATEGORY_ID) || (categories[0] ? categories[0].id : "") || "";
 };
 

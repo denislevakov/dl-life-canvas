@@ -4,6 +4,7 @@ import {
   createFinanceAssistantRule,
   type FinanceAssistantRule,
 } from "@/lib/finance-categorization";
+import { localMonthKey } from "@/lib/local-date";
 import { supabase } from "@/lib/supabase";
 
 export type { FinanceAssistantRule } from "@/lib/finance-categorization";
@@ -146,6 +147,7 @@ export interface ChangeEntry {
 interface CapitalState {
   cashBaselineVersion?: string;
   cardCashExpenseBaseline?: number;
+  cardCashExpenseBaselineMonth?: string;
   cardCashExpenseBaselineVersion?: string;
   assets: Asset[];
   targets: TargetAsset[];
@@ -209,10 +211,15 @@ export const REVIEW_CATEGORY_ID = "cat_review";
 const REVIEW_CATEGORY_NAME = "Нужно распределить";
 
 const transactionCategoryIdForExpense = (expenseId: string) => `cat_expense_${expenseId}`;
+const isIncomeCategoryId = (categoryId: string) => categoryId.startsWith("cat_income_");
+const defaultIncomeTransactionCategories: TransactionCategory[] = [
+  { id: "cat_income_cult", name: "CULT" },
+  { id: "cat_income_misc", name: "Всяко-разно" },
+];
 
-const transactionCategoriesForExpenses = (expenses: Expense[]): TransactionCategory[] => [
+const transactionCategoriesForExpenses = (expenses: Expense[], incomeCategories = defaultIncomeTransactionCategories): TransactionCategory[] => [
   ...expenses.map((expense) => ({ id: transactionCategoryIdForExpense(expense.id), name: expense.name })),
-  { id: "cat_income", name: "Доход" },
+  ...incomeCategories,
   { id: REVIEW_CATEGORY_ID, name: REVIEW_CATEGORY_NAME },
 ];
 
@@ -238,7 +245,7 @@ const legacyTransactionCategoryMap: Record<string, string> = {
   cat_family: transactionCategoryIdForExpense("e8"),
   cat_subscriptions: transactionCategoryIdForExpense("e7"),
   cat_travel: REVIEW_CATEGORY_ID,
-  cat_income: "cat_income",
+  cat_income: "cat_income_misc",
   cat_other: REVIEW_CATEGORY_ID,
 };
 
@@ -246,7 +253,9 @@ const normalizeCategoryName = (name: string) => name.trim().toLowerCase();
 
 const syncTransactionCategoriesWithExpenses = (state: CapitalState): CapitalState => {
   const categories = state.transactionCategories ?? [];
-  const nextCategories = transactionCategoriesForExpenses(state.expenses ?? []);
+  const savedIncomeCategories = categories.filter((category) => isIncomeCategoryId(category.id));
+  const nextCategories = transactionCategoriesForExpenses(
+    state.expenses ?? [], savedIncomeCategories.length ? savedIncomeCategories : defaultIncomeTransactionCategories);
   const nextIds = new Set(nextCategories.map((category) => category.id));
   const remap: Record<string, string> = { ...legacyTransactionCategoryMap };
 
@@ -599,8 +608,7 @@ const applyCashBaseline = (state: CapitalState): CapitalState => {
   return { ...state, cashAccounts: accounts, cashBaselineVersion: CASH_BASELINE_VERSION };
 };
 
-const currentMonthExpenseTotal = (state: Pick<CapitalState, "transactions">) => {
-  const monthKey = new Date().toISOString().slice(0, 7);
+const expenseTotalForMonth = (state: Pick<CapitalState, "transactions">, monthKey: string) => {
   return (state.transactions ?? [])
     .filter((transaction) => transaction.date.startsWith(monthKey) && transaction.type === "expense")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
@@ -608,9 +616,35 @@ const currentMonthExpenseTotal = (state: Pick<CapitalState, "transactions">) => 
 
 const applyCardCashExpenseBaseline = (state: CapitalState): CapitalState => ({
   ...state,
-  cardCashExpenseBaseline: currentMonthExpenseTotal(state),
+  cardCashExpenseBaseline: expenseTotalForMonth(state, localMonthKey()),
+  cardCashExpenseBaselineMonth: localMonthKey(),
   cardCashExpenseBaselineVersion: CARD_CASH_EXPENSE_BASELINE_VERSION,
 });
+
+const closePreviousExpenseMonth = (state: CapitalState, nextMonthKey: string): CapitalState => {
+  const baselineMonth = state.cardCashExpenseBaselineMonth;
+  if (!baselineMonth) return { ...state, cardCashExpenseBaselineMonth: nextMonthKey };
+  if (baselineMonth === nextMonthKey) return state;
+
+  const expenseTotal = expenseTotalForMonth(state, baselineMonth);
+  const baseline = Math.max(0, state.cardCashExpenseBaseline ?? 0);
+  const expenseDelta = Math.max(0, expenseTotal - baseline);
+  let deltaLeft = expenseDelta;
+
+  const cashAccounts = (state.cashAccounts ?? []).map((account) => {
+    if (deltaLeft <= 0 || (account.kind !== "card" && account.kind !== "cash")) return account;
+    const nextBalance = account.balance - deltaLeft;
+    deltaLeft = 0;
+    return { ...account, balance: Math.round(nextBalance * 100) / 100 };
+  });
+
+  return {
+    ...state,
+    cashAccounts,
+    cardCashExpenseBaseline: 0,
+    cardCashExpenseBaselineMonth: nextMonthKey,
+  };
+};
 
 const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined): CapitalState => {
   const shouldApplyCashBaseline = saved?.cashBaselineVersion !== CASH_BASELINE_VERSION;
@@ -621,6 +655,15 @@ const normalizeCapitalState = (saved: Partial<CapitalState> | null | undefined):
     if (!Array.isArray(merged[key])) {
       merged = { ...merged, [key]: defaultState[key] };
     }
+  }
+
+  if (typeof saved?.cardCashExpenseBaselineMonth !== "string") {
+    const currentMonth = localMonthKey();
+    const latestTransactionMonth = (merged.transactions ?? [])
+      .map((transaction) => transaction.date.slice(0, 7))
+      .filter((monthKey) => /^\d{4}-\d{2}$/.test(monthKey) && monthKey <= currentMonth)
+      .sort((a, b) => b.localeCompare(a))[0];
+    merged.cardCashExpenseBaselineMonth = latestTransactionMonth ?? currentMonth;
   }
 
   if (typeof merged.minIncome !== "number" || !isFinite(merged.minIncome) || merged.minIncome <= 0) {
@@ -743,11 +786,19 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CapitalState>(defaultState);
   const [localReady, setLocalReady] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
+  const [calendarMonthKey, setCalendarMonthKey] = useState(localMonthKey);
   const stateRef = useRef(state);
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCalendarMonthKey(localMonthKey());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Load saved state once on mount (client only). Older storage keys are
   // intentionally ignored so stale published values cannot override the
@@ -948,6 +999,21 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
 
     return () => window.clearTimeout(timer);
   }, [cloudReady, state, user?.id]);
+
+  useEffect(() => {
+    if (!localReady || (user?.id && supabase && !cloudReady)) return;
+
+    setState((current) => {
+      const next = closePreviousExpenseMonth(current, calendarMonthKey);
+      if (next === current) return current;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // The in-memory state remains valid when browser storage is unavailable.
+      }
+      return next;
+    });
+  }, [calendarMonthKey, cloudReady, localReady, user?.id]);
 
   // Helper that updates React state AND writes localStorage in one shot,
   // using the freshly computed next state so we never persist a stale value.
@@ -1349,7 +1415,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const passiveIncome = state.incomeSources.filter((i) => i.status === "active" && i.kind === "passive").reduce((s, i) => s + i.monthly, 0);
   const cashAccounts = state.cashAccounts ?? [];
   const transactions = state.transactions ?? [];
-  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthKey = calendarMonthKey;
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
   const monthExpenseTotal = monthTransactions
     .filter((transaction) => transaction.type === "expense")
@@ -1361,7 +1427,11 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     .filter((account) => account.kind === "card" || account.kind === "cash")
     .reduce((s, account) => s + account.balance, 0);
   const cardCashExpenseBaseline = Math.max(0, state.cardCashExpenseBaseline ?? 0);
-  const cardCashExpenseDelta = Math.max(0, monthExpenseTotal - cardCashExpenseBaseline);
+  const balanceMonthKey = state.cardCashExpenseBaselineMonth ?? monthKey;
+  const balanceMonthExpenseTotal = balanceMonthKey === monthKey
+    ? monthExpenseTotal
+    : expenseTotalForMonth(state, balanceMonthKey);
+  const cardCashExpenseDelta = Math.max(0, balanceMonthExpenseTotal - cardCashExpenseBaseline);
   const cardCashBalance = cardCashBaseBalance - cardCashExpenseDelta;
   const safetyBalance = cashAccounts.filter((account) => account.kind === "safety").reduce((s, account) => s + account.balance, 0);
   const currentBalance = cardCashBalance + safetyBalance;

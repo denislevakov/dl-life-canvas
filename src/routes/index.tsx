@@ -52,7 +52,8 @@ function Index() {
 
   const currentStage = state.stages.find((s) => s.id === state.currentStageId) ?? state.stages[0];
   const nextTarget = state.targets.find((t) => t.status !== "purchased");
-  const freedomProgress = Math.min(100, (estimatedCapital / 100_000_000) * 100);
+  const capitalGoal = state.targets.reduce((sum, target) => sum + (target.estimatedCost || 0), 0);
+  const freedomProgress = capitalGoal ? Math.min(100, (estimatedCapital / capitalGoal) * 100) : 0;
 
   const projects = (state.lifeAreas ?? [])
     .filter((area) => area.status === "active" && area.kind === "project")
@@ -114,7 +115,7 @@ function Index() {
                 <span className="tabular">{Math.round(freedomProgress)}%</span>
               </div>
               <ProgressBar value={freedomProgress} accent="gold" />
-              <div className="mt-1.5 text-[11px] text-muted-foreground tabular">Цель капитала: 100 млн ₽</div>
+              <div className="mt-1.5 text-[11px] text-muted-foreground tabular">Цель капитала: {formatMillions(capitalGoal)}</div>
             </div>
           </div>
           <div className="hidden border-l border-border pl-6 md:block">

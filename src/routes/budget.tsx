@@ -6,6 +6,7 @@ import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
 import { REVIEW_CATEGORY_ID, useCapital, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
 import { formatRub } from "@/lib/format";
+import { formatMonthKey, localDateKey, localMonthKey } from "@/lib/local-date";
 
 type ParsedPdfResult = {
   transactions: MoneyTransaction[];
@@ -29,7 +30,8 @@ export const Route = createFileRoute("/budget")({
   component: BudgetPage,
 });
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localDateKey();
+const HISTORY_START_MONTH = "2026-07";
 
 function BudgetPage() {
   const {
@@ -43,22 +45,28 @@ function BudgetPage() {
     updateExpense,
     addExpense,
     removeExpense,
+    addTransactionCategory,
+    updateTransactionCategory,
+    removeTransactionCategory,
     addTransaction,
     importTransactions,
     updateTransaction,
     removeTransaction,
   } = useCapital();
 
-  const categories = state.transactionCategories ?? [];
+  const categories = state.transactionCategories;
   const categoryNameById = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
   const expenseCategories = useMemo(() => categories.filter((category) => category.id.startsWith("cat_expense_")), [categories]);
-  const transactions = state.transactions ?? [];
+  const incomeCategories = useMemo(() => categories.filter((category) => category.id.startsWith("cat_income_")), [categories]);
+  const transactions = state.transactions;
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [newAccountName, setNewAccountName] = useState("");
   const [transferMessage, setTransferMessage] = useState<string | null>(null);
   const [transferDraft, setTransferDraft] = useState({ fromId: "", toId: "", amount: 0 });
   const [draggedExpenseId, setDraggedExpenseId] = useState<string | null>(null);
   const [openExpenseRows, setOpenExpenseRows] = useState<string[]>([]);
+  const [openIncomeRows, setOpenIncomeRows] = useState<string[]>([]);
+  const [selectedHistoryMonth, setSelectedHistoryMonth] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     date: todayIso(),
     description: "",
@@ -68,7 +76,7 @@ function BudgetPage() {
     accountId: "",
   });
 
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const currentMonthKey = localMonthKey();
   const currentMonthTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.date.startsWith(currentMonthKey)),
     [currentMonthKey, transactions],
@@ -79,6 +87,10 @@ function BudgetPage() {
   );
   const currentMonthExpenses = useMemo(
     () => currentMonthTransactions.filter((transaction) => transaction.type === "expense"),
+    [currentMonthTransactions],
+  );
+  const currentMonthIncomes = useMemo(
+    () => currentMonthTransactions.filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID),
     [currentMonthTransactions],
   );
 
@@ -102,6 +114,74 @@ function BudgetPage() {
   const displayedExpenseTotal = expenseByCategory.reduce((sum, row) => sum + row.total, 0);
   const hiddenExpenseTotal = Math.max(0, totals.monthExpenseTotal - displayedExpenseTotal);
   const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), hiddenExpenseTotal, 1);
+  const incomeByCategory = useMemo(() => {
+    const rows = new Map<string, { id: string; name: string; total: number; transactions: MoneyTransaction[] }>();
+
+    currentMonthIncomes.forEach((transaction) => {
+      const name = categoryNameById.get(transaction.categoryId) ?? "Всяко-разно";
+      const current = rows.get(transaction.categoryId) ?? { id: transaction.categoryId, name, total: 0, transactions: [] };
+      rows.set(transaction.categoryId, {
+        ...current,
+        total: current.total + transaction.amount,
+        transactions: [...current.transactions, transaction],
+      });
+    });
+
+    return Array.from(rows.values()).sort((a, b) => b.total - a.total);
+  }, [categoryNameById, currentMonthIncomes]);
+  const maxIncomeCategoryTotal = Math.max(...incomeByCategory.map((row) => row.total), 1);
+  const monthlyHistory = useMemo(() => {
+    const months = new Map<string, {
+      monthKey: string;
+      expense: number;
+      income: number;
+      expenseCategories: Map<string, number>;
+      incomeCategories: Map<string, number>;
+    }>();
+
+    transactions.forEach((transaction) => {
+      const monthKey = transaction.date.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(monthKey)) return;
+      const current = months.get(monthKey) ?? {
+        monthKey,
+        expense: 0,
+        income: 0,
+        expenseCategories: new Map<string, number>(),
+        incomeCategories: new Map<string, number>(),
+      };
+      const categoryName = categoryNameById.get(transaction.categoryId) ?? "Нужно распределить";
+
+      if (transaction.type === "expense") {
+        current.expense += transaction.amount;
+        current.expenseCategories.set(categoryName, (current.expenseCategories.get(categoryName) ?? 0) + transaction.amount);
+      } else if (transaction.categoryId !== REVIEW_CATEGORY_ID) {
+        current.income += transaction.amount;
+        current.incomeCategories.set(categoryName, (current.incomeCategories.get(categoryName) ?? 0) + transaction.amount);
+      }
+      months.set(monthKey, current);
+    });
+
+    const toRows = (values: Map<string, number>) => Array.from(values.entries())
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+
+    return Array.from(months.values())
+      .map((month) => ({
+        ...month,
+        expenseCategories: toRows(month.expenseCategories),
+        incomeCategories: toRows(month.incomeCategories),
+      }))
+      .filter((month) => month.monthKey >= HISTORY_START_MONTH)
+      .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+  }, [categoryNameById, transactions]);
+  const completedMonths = monthlyHistory.filter((month) => month.monthKey < currentMonthKey);
+  const averageMonthlyExpense = completedMonths.length
+    ? completedMonths.reduce((sum, month) => sum + month.expense, 0) / completedMonths.length
+    : 0;
+  const averageMonthlyIncome = completedMonths.length
+    ? completedMonths.reduce((sum, month) => sum + month.income, 0) / completedMonths.length
+    : 0;
+  const selectedMonthSummary = monthlyHistory.find((month) => month.monthKey === selectedHistoryMonth) ?? null;
   const scenarioExpense = state.minExpense;
   const minIncomeScenario = {
     income: state.minIncome,
@@ -111,7 +191,7 @@ function BudgetPage() {
     coverage: scenarioExpense ? state.minIncome / scenarioExpense : 0,
     savingsRate: state.minIncome ? ((state.minIncome - scenarioExpense) / state.minIncome) * 100 : 0,
   };
-  const cashAccounts = state.cashAccounts ?? [];
+  const cashAccounts = state.cashAccounts;
   const cardCashAccounts = cashAccounts.filter((account) => account.kind === "card" || account.kind === "cash");
   const safetyAccounts = cashAccounts.filter((account) => account.kind === "safety");
   const primaryCardCashAccount = cardCashAccounts[0];
@@ -155,11 +235,11 @@ function BudgetPage() {
       .reduce((sum, account) => sum + account.balance, 0);
     if (primaryCardCashAccount) {
       updateCashAccount(primaryCardCashAccount.id, { name: "Карта / наличные", kind: "card", balance: nextBalance - otherBalance });
-      update({ cardCashExpenseBaseline: totals.monthExpenseTotal });
+      update({ cardCashExpenseBaseline: totals.monthExpenseTotal, cardCashExpenseBaselineMonth: currentMonthKey });
       return;
     }
     addCashAccount({ id: `ca_${Date.now()}`, name: "Карта / наличные", kind: "card", balance: nextBalance });
-    update({ cardCashExpenseBaseline: totals.monthExpenseTotal });
+    update({ cardCashExpenseBaseline: totals.monthExpenseTotal, cardCashExpenseBaselineMonth: currentMonthKey });
   };
 
   const setSafetyBalance = (nextBalance: number) => {
@@ -196,8 +276,8 @@ function BudgetPage() {
   };
 
   const manualCategoryOptions = useMemo(
-    () => (draft.type === "income" ? categories.filter((category) => category.id === "cat_income") : expenseCategories),
-    [categories, draft.type, expenseCategories],
+    () => (draft.type === "income" ? incomeCategories : expenseCategories),
+    [draft.type, expenseCategories, incomeCategories],
   );
 
   useEffect(() => {
@@ -245,6 +325,9 @@ function BudgetPage() {
 
   const toggleExpenseRow = (id: string) =>
     setOpenExpenseRows((rows) => (rows.includes(id) ? rows.filter((rowId) => rowId !== id) : [...rows, id]));
+
+  const toggleIncomeRow = (id: string) =>
+    setOpenIncomeRows((rows) => (rows.includes(id) ? rows.filter((rowId) => rowId !== id) : [...rows, id]));
 
   const clearCurrentMonthExpenses = () => {
     if (!currentMonthExpenses.length) return;
@@ -303,7 +386,7 @@ function BudgetPage() {
       <PageHeader
         eyebrow="Баланс и поток"
         title="Доходы / Расходы"
-        description="Фактический баланс по счетам, расходы из выписки, ручные корректировки и распределение по статьям."
+        description="Фактический баланс по счетам, доходы и расходы из выписки, ручные корректировки и распределение по статьям."
       />
 
       <div className="mb-4 grid gap-4 md:grid-cols-3">
@@ -343,10 +426,15 @@ function BudgetPage() {
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Факт за месяц</div>
-            <div className="mt-1 font-display text-xl">Расходы по статьям</div>
+            <div className="mt-1 font-display text-xl">Расходы и доходы по статьям</div>
           </div>
-          <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-            Расходы: <span className="text-foreground">{formatRub(totals.monthExpenseTotal)}</span>
+          <div className="flex flex-wrap justify-end gap-2">
+            <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
+              Расходы: <span className="text-foreground">{formatRub(totals.monthExpenseTotal)}</span>
+            </div>
+            <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
+              Доходы: <span className="text-[color:oklch(0.7_0.1_160)]">{formatRub(totals.monthIncomeTotal)}</span>
+            </div>
           </div>
         </div>
 
@@ -377,7 +465,7 @@ function BudgetPage() {
               className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />
-              Очистить месяц
+              Очистить расходы
             </button>
           </div>
         </div>
@@ -411,8 +499,8 @@ function BudgetPage() {
                     onChange={(event) =>
                       updateTransaction(transaction.id, {
                         categoryId: event.target.value,
-                        type: event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
-                        accountId: (event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type) === "income"
+                        type: event.target.value.startsWith("cat_income_") ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
+                        accountId: (event.target.value.startsWith("cat_income_") ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type) === "income"
                           ? transaction.accountId || defaultTransactionAccountId
                           : defaultTransactionAccountId,
                       })
@@ -420,11 +508,9 @@ function BudgetPage() {
                     className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
                   >
                     <option value={REVIEW_CATEGORY_ID}>Нужно распределить</option>
-                    {categories
-                      .filter((category) => category.id === "cat_income")
-                      .map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
+                    {incomeCategories.map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
                     {expenseCategories.map((category) => (
                       <option key={category.id} value={category.id}>{category.name}</option>
                     ))}
@@ -457,6 +543,10 @@ function BudgetPage() {
           </div>
         ) : null}
 
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Расходы по статьям</div>
+          <div className="text-xs tabular text-muted-foreground">{formatRub(totals.monthExpenseTotal)}</div>
+        </div>
         {expenseByCategory.length ? (
           <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
             {expenseByCategory.map((row) => {
@@ -493,7 +583,7 @@ function BudgetPage() {
                             onChange={(event) =>
                               updateTransaction(transaction.id, {
                                 categoryId: event.target.value,
-                                type: event.target.value === "cat_income" ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
+                                type: "expense",
                                 accountId: defaultTransactionAccountId,
                               })
                             }
@@ -537,6 +627,75 @@ function BudgetPage() {
           </div>
         )}
 
+        <div className="mt-8 border-t border-border pt-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Доходы по статьям</div>
+            <div className="text-xs tabular text-[color:oklch(0.7_0.1_160)]">{formatRub(totals.monthIncomeTotal)}</div>
+          </div>
+
+          {incomeByCategory.length ? (
+            <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+              {incomeByCategory.map((row) => {
+                const width = Math.max(4, (row.total / maxIncomeCategoryTotal) * 100);
+                const isOpen = openIncomeRows.includes(row.id);
+                return (
+                  <div key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleIncomeRow(row.id)}
+                      className="mb-1.5 flex w-full items-center justify-between gap-3 text-left text-sm"
+                      aria-expanded={isOpen}
+                    >
+                      <span className="text-foreground">{row.name}</span>
+                      <span className="inline-flex items-center gap-2 tabular text-muted-foreground">
+                        {formatRub(row.total)}
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      </span>
+                    </button>
+                    <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-elevated)]">
+                      <div className="h-full rounded-full bg-[color:oklch(0.7_0.1_160)]" style={{ width: `${width}%` }} />
+                    </div>
+                    {isOpen ? (
+                      <div className="mt-3 grid gap-2 rounded-lg border border-border bg-[color:var(--surface-elevated)]/20 p-2">
+                        {row.transactions.map((transaction) => (
+                          <div key={transaction.id} className="grid gap-2 rounded-md border border-border bg-card/70 p-2 text-xs md:grid-cols-[1fr_86px_130px_30px] md:items-center">
+                            <div className="min-w-0">
+                              <div className="truncate text-foreground">{transaction.description}</div>
+                              <div className="mt-1 text-muted-foreground">{transaction.date} · {transaction.source === "pdf" ? "PDF" : "вручную"}</div>
+                            </div>
+                            <div className="tabular text-muted-foreground md:text-right">{formatRub(transaction.amount)}</div>
+                            <select
+                              value={transaction.categoryId}
+                              onChange={(event) => updateTransaction(transaction.id, { categoryId: event.target.value, type: "income" })}
+                              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none"
+                            >
+                              {incomeCategories.map((category) => (
+                                <option key={category.id} value={category.id}>{category.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => removeTransaction(transaction.id)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              aria-label="Удалить операцию"
+                              title="Удалить операцию"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+              За текущий месяц доходов пока нет.
+            </div>
+          )}
+        </div>
+
         <details className="mt-5 rounded-lg border border-dashed border-border px-3 py-2">
           <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">Добавить расход или доход вручную</summary>
           <div className={`mt-4 grid gap-3 lg:items-end ${draft.type === "income" ? "lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_150px_auto]" : "lg:grid-cols-[130px_minmax(180px,1fr)_120px_140px_150px_auto]"}`}>
@@ -554,7 +713,7 @@ function BudgetPage() {
               <input
                 value={draft.description}
                 onChange={(event) => setDraft((value) => ({ ...value, description: event.target.value }))}
-                placeholder="Новый расход"
+                placeholder={draft.type === "income" ? "Новый доход" : "Новый расход"}
                 className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </label>
@@ -615,6 +774,88 @@ function BudgetPage() {
             </button>
           </div>
         </details>
+      </section>
+
+      <section className="mb-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Динамика</div>
+            <div className="mt-1 font-display text-xl">История по месяцам</div>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
+              Средний расход: <span className="text-foreground">{completedMonths.length ? formatRub(averageMonthlyExpense) : "—"}</span>
+            </div>
+            <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
+              Средний доход: <span className="text-[color:oklch(0.7_0.1_160)]">{completedMonths.length ? formatRub(averageMonthlyIncome) : "—"}</span>
+            </div>
+          </div>
+        </div>
+
+        {monthlyHistory.length ? (
+          <div className="grid gap-3">
+            {monthlyHistory.slice(0, 12).map((month) => {
+              const isSelected = selectedHistoryMonth === month.monthKey;
+              return (
+                <button
+                  key={month.monthKey}
+                  type="button"
+                  onClick={() => setSelectedHistoryMonth(isSelected ? null : month.monthKey)}
+                  className="grid gap-3 border-b border-border py-3 text-left last:border-b-0 md:grid-cols-[minmax(150px,1fr)_180px_180px_auto] md:items-center"
+                >
+                  <div className="flex items-center gap-2 text-sm capitalize text-foreground">
+                    {formatMonthKey(month.monthKey)}
+                    {month.monthKey === currentMonthKey ? (
+                      <span className="rounded border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">текущий</span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground md:justify-end">
+                    <span>Расходы</span>
+                    <span className="tabular text-sm text-foreground">{formatRub(month.expense)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground md:justify-end">
+                    <span>Доходы</span>
+                    <span className="tabular text-sm text-[color:oklch(0.7_0.1_160)]">{formatRub(month.income)}</span>
+                  </div>
+                  <div className="inline-flex items-center justify-end text-muted-foreground">
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isSelected ? "rotate-180" : ""}`} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            История появится после добавления первой операции.
+          </div>
+        )}
+
+        {selectedMonthSummary ? (
+          <div className="mt-5 grid gap-6 border-t border-border pt-5 md:grid-cols-2">
+            <div>
+              <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Расходы</div>
+              <div className="grid gap-2">
+                {selectedMonthSummary.expenseCategories.length ? selectedMonthSummary.expenseCategories.map((category) => (
+                  <div key={category.name} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">{category.name}</span>
+                    <span className="tabular text-foreground">{formatRub(category.total)}</span>
+                  </div>
+                )) : <div className="text-sm text-muted-foreground">Нет расходов</div>}
+              </div>
+            </div>
+            <div>
+              <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Доходы</div>
+              <div className="grid gap-2">
+                {selectedMonthSummary.incomeCategories.length ? selectedMonthSummary.incomeCategories.map((category) => (
+                  <div key={category.name} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">{category.name}</span>
+                    <span className="tabular text-[color:oklch(0.7_0.1_160)]">{formatRub(category.total)}</span>
+                  </div>
+                )) : <div className="text-sm text-muted-foreground">Нет доходов</div>}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <details className="mb-8 rounded-xl border border-border bg-card p-4">
@@ -720,8 +961,8 @@ function BudgetPage() {
         </div>
       </details>
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-5">
-        <section className="rounded-xl border border-border bg-card p-6 lg:col-span-3">
+      <div className="mb-6 grid gap-6 lg:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card p-6">
           <div className="mb-5">
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Справочник расходов</div>
             <div className="mt-1 font-display text-xl">Статьи расходов</div>
@@ -783,7 +1024,43 @@ function BudgetPage() {
           </button>
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-6 lg:col-span-2">
+        <section className="rounded-xl border border-border bg-card p-6">
+          <div className="mb-5">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Справочник доходов</div>
+            <div className="mt-1 font-display text-xl">Статьи доходов</div>
+          </div>
+
+          <div className="divide-y divide-border">
+            {incomeCategories.map((category) => (
+              <div key={category.id} className="flex items-center gap-3 py-3">
+                <input
+                  value={category.name}
+                  onChange={(event) => updateTransactionCategory(category.id, { name: event.target.value })}
+                  className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none focus:text-[color:var(--gold)]"
+                />
+                <button
+                  onClick={() => removeTransactionCategory(category.id)}
+                  disabled={incomeCategories.length <= 1}
+                  className="inline-flex items-center justify-center rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-30"
+                  aria-label="Удалить статью дохода"
+                  title="Удалить статью дохода"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => addTransactionCategory({ id: `cat_income_${Date.now()}`, name: "Новая статья дохода" })}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border py-2.5 text-xs text-muted-foreground transition-colors hover:border-[color:var(--gold)]/50 hover:text-[color:var(--gold)]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Добавить статью
+          </button>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
           <div className="mb-5">
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Сценарий дохода</div>
             <div className="mt-1 font-display text-xl">Минимальный доход</div>
