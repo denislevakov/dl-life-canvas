@@ -484,7 +484,9 @@ function BudgetPage() {
                 <div
                   key={transaction.id}
                   className={`grid gap-2 rounded-md border border-border bg-card/70 p-3 md:items-center ${
-                    transaction.type === "income" ? "md:grid-cols-[1fr_130px_180px_180px_36px]" : "md:grid-cols-[1fr_130px_180px_36px]"
+                    transaction.type === "income"
+                      ? "md:grid-cols-[minmax(0,1fr)_120px_110px_180px_180px_36px]"
+                      : "md:grid-cols-[minmax(0,1fr)_120px_110px_180px_36px]"
                   }`}
                 >
                   <div className="min-w-0">
@@ -495,37 +497,54 @@ function BudgetPage() {
                   </div>
                   <div className="text-sm tabular text-muted-foreground md:text-right">{formatRub(transaction.amount)}</div>
                   <select
-                    value={transaction.categoryId}
-                    onChange={(event) =>
+                    value={transaction.type}
+                    onChange={(event) => {
+                      const nextType = event.target.value as MoneyTransactionType;
                       updateTransaction(transaction.id, {
-                        categoryId: event.target.value,
-                        type: event.target.value.startsWith("cat_income_") ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type,
-                        accountId: (event.target.value.startsWith("cat_income_") ? "income" : event.target.value.startsWith("cat_expense_") ? "expense" : transaction.type) === "income"
+                        type: nextType,
+                        categoryId: REVIEW_CATEGORY_ID,
+                        accountId: nextType === "income"
                           ? transaction.accountId || defaultTransactionAccountId
                           : defaultTransactionAccountId,
-                      })
-                    }
+                      });
+                    }}
                     className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                    aria-label={`Тип операции ${transaction.description}`}
                   >
-                    <option value={REVIEW_CATEGORY_ID}>Нужно распределить</option>
-                    {incomeCategories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
-                    {expenseCategories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
+                    <option value="expense">Расход</option>
+                    <option value="income">Доход</option>
                   </select>
                   {transaction.type === "income" ? (
                     <select
                       value={transaction.accountId || defaultTransactionAccountId}
                       onChange={(event) => updateTransaction(transaction.id, { accountId: event.target.value })}
                       className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                      aria-label={`Счет зачисления ${transaction.description}`}
                     >
                       {cashAccounts.map((account) => (
                         <option key={account.id} value={account.id}>{account.name}</option>
                       ))}
                     </select>
                   ) : null}
+                  <select
+                    value={transaction.categoryId}
+                    onChange={(event) =>
+                      updateTransaction(transaction.id, {
+                        categoryId: event.target.value,
+                        type: transaction.type,
+                        accountId: transaction.type === "income"
+                          ? transaction.accountId || defaultTransactionAccountId
+                          : defaultTransactionAccountId,
+                      })
+                    }
+                    className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground outline-none"
+                    aria-label={`Статья операции ${transaction.description}`}
+                  >
+                    <option value={REVIEW_CATEGORY_ID}>Выбрать статью</option>
+                    {(transaction.type === "income" ? incomeCategories : expenseCategories).map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
                   <button
                     onClick={() => removeTransaction(transaction.id)}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
