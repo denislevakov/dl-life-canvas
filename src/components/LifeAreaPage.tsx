@@ -66,6 +66,16 @@ const getActionDeadlineTime = (action: LifeAreaAction) => {
   return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
 };
 
+const orderActionsByDeadline = (actions: LifeAreaAction[]) => {
+  const activeActions = actions
+    .filter((action) => action.status !== "done")
+    .map((action, index) => ({ action, index }))
+    .sort((left, right) => getActionDeadlineTime(left.action) - getActionDeadlineTime(right.action) || left.index - right.index)
+    .map(({ action }) => action);
+  const doneActions = actions.filter((action) => action.status === "done");
+  return [...activeActions, ...doneActions];
+};
+
 const orderActionsAfterStatusToggle = (actions: LifeAreaAction[], actionId: string, wasDone: boolean) => {
   const activeActions = actions.filter((action) => action.status !== "done");
   const doneActions = actions.filter((action) => action.status === "done");
@@ -178,23 +188,25 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   };
 
   const updateAction = (area: LifeArea, actionId: string, patch: Partial<LifeAreaAction>) => {
+    const actions = (area.actions ?? []).map((action) => (action.id === actionId ? { ...action, ...patch } : action));
     updateLifeArea(area.id, {
-      actions: (area.actions ?? []).map((action) => (action.id === actionId ? { ...action, ...patch } : action)),
+      actions: area.kind === "project" && ("deadline" in patch || "status" in patch) ? orderActionsByDeadline(actions) : actions,
     });
   };
 
   const addAction = (area: LifeArea) => {
+    const actions = [
+      ...(area.actions ?? []),
+      {
+        id: `laa_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        title: "Новый шаг",
+        deadline: "",
+        status: "active" as const,
+        note: "",
+      },
+    ];
     updateLifeArea(area.id, {
-      actions: [
-        ...(area.actions ?? []),
-        {
-          id: `laa_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          title: "Новый шаг",
-          deadline: "",
-          status: "active",
-          note: "",
-        },
-      ],
+      actions: area.kind === "project" ? orderActionsByDeadline(actions) : actions,
     });
     setEditingAreaId(area.id);
   };
@@ -209,7 +221,11 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
     const actions = currentActions.map((action) =>
       action.id === actionId ? { ...action, status: action.status === "done" ? "active" : "done" } : action,
     );
-    updateLifeArea(area.id, { actions: orderActionsAfterStatusToggle(actions, actionId, wasDone) });
+    updateLifeArea(area.id, {
+      actions: area.kind === "project"
+        ? orderActionsByDeadline(actions)
+        : orderActionsAfterStatusToggle(actions, actionId, wasDone),
+    });
   };
 
   const toggleActionList = (areaId: string) => {
@@ -238,6 +254,14 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
     allAreas.splice(targetIndex, 0, moved);
     update({ lifeAreas: allAreas });
     setDraggedAreaId(null);
+  };
+
+  const sortProjectActionsByDeadline = () => {
+    update({
+      lifeAreas: (state.lifeAreas ?? []).map((area) =>
+        area.kind === "project" ? { ...area, actions: orderActionsByDeadline(area.actions ?? []) } : area,
+      ),
+    });
   };
 
   return (
@@ -335,6 +359,15 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
             {item.label}
           </button>
         ))}
+        {kind === "project" ? (
+          <button
+            onClick={sortProjectActionsByDeadline}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            По сроку
+          </button>
+        ) : null}
       </div>
 
       {kind === "skill" ? (
@@ -540,11 +573,7 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                               className="h-10 min-w-0 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none"
                             />
                             <button
-                              onClick={() =>
-                                updateAction(area, action.id, {
-                                  status: action.status === "done" ? "active" : "done",
-                                })
-                              }
+                              onClick={() => toggleActionStatus(area, action.id)}
                               className={
                                 "inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-md border px-3 text-xs transition-colors " +
                                 (action.status === "done"
