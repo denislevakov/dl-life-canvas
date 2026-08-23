@@ -113,6 +113,7 @@ function BudgetPage() {
 
   const displayedExpenseTotal = expenseByCategory.reduce((sum, row) => sum + row.total, 0);
   const hiddenExpenseTotal = Math.max(0, totals.monthExpenseTotal - displayedExpenseTotal);
+  const hasVisibleHiddenExpense = Math.round(hiddenExpenseTotal) > 0;
   const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), hiddenExpenseTotal, 1);
   const incomeByCategory = useMemo(() => {
     const rows = new Map<string, { id: string; name: string; total: number; transactions: MoneyTransaction[] }>();
@@ -628,7 +629,7 @@ function BudgetPage() {
                 </div>
               );
             })}
-            {hiddenExpenseTotal > 0 ? (
+            {hasVisibleHiddenExpense ? (
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
                   <span className="text-[color:var(--gold)]">Не показано в строках</span>
