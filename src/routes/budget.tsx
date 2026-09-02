@@ -386,7 +386,7 @@ function BudgetPage() {
     <PageContainer>
       <PageHeader
         eyebrow="Баланс и поток"
-        title="Доходы / Расходы"
+        title="Доходы и расходы"
         description="Фактический баланс по счетам, доходы и расходы из выписки, ручные корректировки и распределение по статьям."
       />
 
@@ -418,6 +418,109 @@ function BudgetPage() {
           <div className="mt-5 text-sm text-muted-foreground">резерв</div>
         </section>
       </div>
+
+      <details className="mb-4 rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">
+          Счета и переводы
+        </summary>
+
+        <div className="mt-4 rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-4">
+          <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <ArrowRightLeft className="h-3.5 w-3.5 text-[color:var(--gold)]" />
+            Перевод между счетами
+          </div>
+          <div className="grid gap-2 md:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)_140px_auto]">
+            <select
+              value={transferDraft.fromId}
+              onChange={(event) => {
+                setTransferMessage(null);
+                setTransferDraft((value) => ({ ...value, fromId: event.target.value }));
+              }}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+            >
+              {cashAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={transferDraft.toId}
+              onChange={(event) => {
+                setTransferMessage(null);
+                setTransferDraft((value) => ({ ...value, toId: event.target.value }));
+              }}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
+            >
+              {cashAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={transferDraft.amount || ""}
+              onChange={(event) => {
+                setTransferMessage(null);
+                setTransferDraft((value) => ({ ...value, amount: Math.max(0, Number(event.target.value) || 0) }));
+              }}
+              placeholder="Сумма"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              onClick={submitTransfer}
+              disabled={!canTransfer}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Перенести
+            </button>
+          </div>
+          {transferMessage ? <div className="mt-3 text-xs text-muted-foreground">{transferMessage}</div> : null}
+        </div>
+
+        {extraAccounts.length ? (
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {extraAccounts.map((account) => (
+              <div key={account.id} className="rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <input
+                    value={account.name}
+                    onChange={(event) => updateCashAccount(account.id, { name: event.target.value })}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
+                  />
+                  <button
+                    onClick={() => removeCashAccount(account.id)}
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(180px,1fr)_auto]">
+          <input
+            value={newAccountName}
+            onChange={(event) => setNewAccountName(event.target.value)}
+            placeholder="Новый счет"
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            onClick={addAccount}
+            disabled={!newAccountName.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить счет
+          </button>
+        </div>
+      </details>
 
       {importMessage ? (
         <div className="mb-4 rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{importMessage}</div>
@@ -753,8 +856,9 @@ function BudgetPage() {
               <input
                 type="number"
                 min={0}
-                value={draft.amount}
+                value={draft.amount || ""}
                 onChange={(event) => setDraft((value) => ({ ...value, amount: Number(event.target.value) || 0 }))}
+                placeholder="Сумма"
                 className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
               />
             </label>
@@ -877,109 +981,6 @@ function BudgetPage() {
           </div>
         ) : null}
       </section>
-
-      <details className="mb-8 rounded-xl border border-border bg-card p-4">
-        <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-[color:var(--gold)]">
-          Счета и переводы
-        </summary>
-
-        <div className="mt-4 rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-4">
-          <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-            <ArrowRightLeft className="h-3.5 w-3.5 text-[color:var(--gold)]" />
-            Перевод между счетами
-          </div>
-          <div className="grid gap-2 md:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)_140px_auto]">
-            <select
-              value={transferDraft.fromId}
-              onChange={(event) => {
-                setTransferMessage(null);
-                setTransferDraft((value) => ({ ...value, fromId: event.target.value }));
-              }}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
-            >
-              {cashAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={transferDraft.toId}
-              onChange={(event) => {
-                setTransferMessage(null);
-                setTransferDraft((value) => ({ ...value, toId: event.target.value }));
-              }}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"
-            >
-              {cashAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={transferDraft.amount || ""}
-              onChange={(event) => {
-                setTransferMessage(null);
-                setTransferDraft((value) => ({ ...value, amount: Math.max(0, Number(event.target.value) || 0) }));
-              }}
-              placeholder="Сумма"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            <button
-              onClick={submitTransfer}
-              disabled={!canTransfer}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Перенести
-            </button>
-          </div>
-          {transferMessage ? <div className="mt-3 text-xs text-muted-foreground">{transferMessage}</div> : null}
-        </div>
-
-        {extraAccounts.length ? (
-          <div className="mt-4 grid gap-2 md:grid-cols-3">
-            {extraAccounts.map((account) => (
-              <div key={account.id} className="rounded-lg border border-border bg-[color:var(--surface-elevated)]/30 p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <input
-                    value={account.name}
-                    onChange={(event) => updateCashAccount(account.id, { name: event.target.value })}
-                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
-                  />
-                  <button
-                    onClick={() => removeCashAccount(account.id)}
-                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <EditableNumber value={account.balance} onChange={(value) => updateCashAccount(account.id, { balance: value })} className="text-sm" />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(180px,1fr)_auto]">
-          <input
-            value={newAccountName}
-            onChange={(event) => setNewAccountName(event.target.value)}
-            placeholder="Новый счет"
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          />
-          <button
-            onClick={addAccount}
-            disabled={!newAccountName.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-[color:var(--surface-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Добавить счет
-          </button>
-        </div>
-      </details>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <section className="rounded-xl border border-border bg-card p-6">

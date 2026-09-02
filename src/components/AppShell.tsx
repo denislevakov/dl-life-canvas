@@ -23,20 +23,42 @@ import {
   HeartPulse,
 } from "lucide-react";
 
-const nav = [
-  { to: "/", label: "Обзор", icon: LayoutDashboard },
-  { to: "/projects", label: "Проекты", icon: FolderKanban },
-  { to: "/goals", label: "Цели и задачи", icon: ListChecks },
-  { to: "/income-sources", label: "Источники дохода", icon: Briefcase },
-  { to: "/budget", label: "Доход и расходы", icon: Receipt },
-  { to: "/assets", label: "Активы", icon: Wallet },
-  { to: "/targets", label: "Целевые активы", icon: Target },
-  { to: "/skills", label: "Скилы", icon: Brain },
-  { to: "/health", label: "Здоровье", icon: HeartPulse },
-  { to: "/hobbies", label: "Хобби", icon: Gamepad2 },
-  { to: "/life-map", label: "Карта жизни", icon: Map },
-  { to: "/freedom", label: "Свобода", icon: Sparkles },
+const navGroups = [
+  {
+    label: "Основное",
+    items: [
+      { to: "/", label: "Обзор", icon: LayoutDashboard },
+      { to: "/projects", label: "Проекты", icon: FolderKanban },
+      { to: "/goals", label: "Цели и задачи", icon: ListChecks },
+    ],
+  },
+  {
+    label: "Финансы",
+    items: [
+      { to: "/budget", label: "Доход и расходы", icon: Receipt },
+      { to: "/income-sources", label: "Источники дохода", icon: Briefcase },
+      { to: "/assets", label: "Активы", icon: Wallet },
+      { to: "/targets", label: "Целевые активы", icon: Target },
+    ],
+  },
+  {
+    label: "Личное развитие",
+    items: [
+      { to: "/health", label: "Здоровье", icon: HeartPulse },
+      { to: "/skills", label: "Скилы", icon: Brain },
+      { to: "/hobbies", label: "Хобби", icon: Gamepad2 },
+    ],
+  },
+  {
+    label: "Стратегия",
+    items: [
+      { to: "/life-map", label: "Карта жизни", icon: Map },
+      { to: "/freedom", label: "Свобода", icon: Sparkles },
+    ],
+  },
 ] as const;
+
+const nav = navGroups.flatMap((group) => group.items);
 
 function AccountPanel() {
   const { user, signOut } = useAuth();
@@ -125,26 +147,38 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="mt-0.5 text-[11px] text-muted-foreground group-hover:text-[color:var(--gold)]/80 transition-colors">Дашборд жизни</div>
             </a>
           </div>
-          <nav className="flex-1 px-3 py-4 space-y-0.5">
-            {nav.map((item) => {
-              const active = item.to === "/" ? path === "/" : path.startsWith(item.to);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={
-                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors " +
-                    (active
-                      ? "bg-[color:var(--surface-elevated)] text-[color:var(--gold)] border border-border"
-                      : "text-muted-foreground hover:text-foreground hover:bg-[color:var(--surface-elevated)]/60")
-                  }
-                >
-                  <Icon className="h-4 w-4" strokeWidth={1.5} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+          <nav className="flex-1 px-3 py-4">
+            {navGroups.map((group, groupIndex) => (
+              <div
+                key={group.label}
+                className={groupIndex === 0 ? "" : "mt-4 border-t border-border/70 pt-4"}
+              >
+                <div className="px-3 pb-1.5 text-[10px] font-medium text-muted-foreground/70">
+                  {group.label}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const active = item.to === "/" ? path === "/" : path.startsWith(item.to);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        className={
+                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors " +
+                          (active
+                            ? "bg-[color:var(--surface-elevated)] text-[color:var(--gold)] border border-border"
+                            : "text-muted-foreground hover:text-foreground hover:bg-[color:var(--surface-elevated)]/60")
+                        }
+                      >
+                        <Icon className="h-4 w-4" strokeWidth={1.5} />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
           <div className="p-4 border-t border-border">
             <AccountPanel />
