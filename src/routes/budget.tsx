@@ -105,6 +105,10 @@ function BudgetPage() {
       rows.set(id, { ...current, total: current.total + transaction.amount, transactions: [...current.transactions, transaction] });
     });
 
+    for (const row of rows.values()) {
+      row.transactions.sort((a, b) => b.date.localeCompare(a.date));
+    }
+
     return Array.from(rows.values()).sort((a, b) => {
       if (a.needsReview !== b.needsReview) return a.needsReview ? 1 : -1;
       return b.total - a.total;
