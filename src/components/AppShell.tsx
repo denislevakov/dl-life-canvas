@@ -93,6 +93,7 @@ function ResetButton() {
         </div>
         <div className="mt-2 flex gap-2">
           <button
+            type="button"
             onClick={() => {
               reset();
               setConfirming(false);
@@ -103,10 +104,11 @@ function ResetButton() {
             Да, сбросить
           </button>
           <button
+            type="button"
             onClick={() => setConfirming(false)}
             className="flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
           >
-            Отмена
+            Нет
           </button>
         </div>
       </div>
@@ -115,6 +117,7 @@ function ResetButton() {
 
   return (
     <button
+      type="button"
       onClick={() => setConfirming(true)}
       className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)]/60 hover:text-foreground"
     >
@@ -179,12 +182,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               </div>
             ))}
+            <div className="mt-4 border-t border-border/70 pt-4">
+              <AccountPanel />
+            </div>
           </nav>
           <div className="p-4 border-t border-border">
-            <AccountPanel />
-            <div className="mt-4">
-              <ThemeToggle theme={theme} onToggle={toggleTheme} className="w-full" />
-            </div>
+            <ThemeToggle theme={theme} onToggle={toggleTheme} className="w-full" />
             <ResetButton />
           </div>
         </aside>
