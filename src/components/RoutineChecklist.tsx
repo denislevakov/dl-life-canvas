@@ -71,12 +71,6 @@ export function RoutineChecklist() {
                 </label>
               ))}
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              {group.id === "day"
-                ? "Новый день — новые отметки"
-                : "Новая неделя начинается в понедельник"}{" "}
-              · МСК
-            </p>
           </div>
         );
       })}
