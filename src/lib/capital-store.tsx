@@ -145,6 +145,7 @@ export interface ChangeEntry {
 }
 
 interface CapitalState {
+  routineChecks?: Record<string, Record<string, boolean>>;
   cashBaselineVersion?: string;
   cardCashExpenseBaseline?: number;
   cardCashExpenseBaselineMonth?: string;
