@@ -1,29 +1,8 @@
 import { useEffect, useState } from "react";
 import { useCapital } from "@/lib/capital-store";
 import { routinePeriods } from "@/lib/routine-periods";
-
-const groups = [
-  {
-    id: "day",
-    title: "Сегодня",
-    items: [
-      ["wake", "Подъем в 7:30"],
-      ["nonfiction", "Нон-фикшен 20 мин."],
-      ["fiction", "Фикшен 20 мин."],
-      ["sleep", "Сон до 23:30"],
-    ],
-  },
-  {
-    id: "week",
-    title: "Неделя",
-    items: [
-      ["workouts", "Две тренировки"],
-      ["active", "Активный выходной"],
-      ["rest", "Выходной без решений"],
-      ["pool", "Бассейн"],
-    ],
-  },
-] as const;
+import { routineGroups as groups } from "@/lib/routine-history";
+import { RoutineHistory } from "@/components/RoutineHistory";
 
 export function RoutineChecklist() {
   const { state, update } = useCapital();
@@ -101,6 +80,7 @@ export function RoutineChecklist() {
           </div>
         );
       })}
+      {periods && <RoutineHistory periods={periods} />}
     </section>
   );
 }
