@@ -37,8 +37,10 @@ export function RoutineHistory({ periods }: { periods: { day: string; week: stri
   };
 
   return (
-    <details className="rounded-xl border border-border bg-card p-5 md:col-span-2 md:p-6">
-      <summary className="cursor-pointer py-2 font-display text-xl">История и статистика</summary>
+    <details className="rounded-xl border border-border bg-card px-4 py-1 md:col-span-2">
+      <summary className="min-h-11 cursor-pointer py-3 font-display text-sm">
+        История и статистика
+      </summary>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">
         Учёт с 13 октября 2026 · МСК. Сегодня не входит в итоги месяца. Пустые прошедшие дни
         означают отсутствие отметок, а не обязательно невыполнение.

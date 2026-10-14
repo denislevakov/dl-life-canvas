@@ -22,24 +22,24 @@ export function RoutineChecklist() {
   }, []);
 
   return (
-    <section aria-label="Мои правила" className="mb-6 grid gap-4 md:grid-cols-2">
+    <section aria-label="Мои правила" className="mb-4 grid gap-2 md:grid-cols-2">
       {groups.map((group) => {
         const key = periods ? `${group.id}:${periods[group.id]}` : "";
         const checks = state.routineChecks?.[key] ?? {};
         const done = group.items.filter(([id]) => checks[id] === true).length;
         return (
-          <div key={group.id} className="rounded-xl border border-border bg-card p-5 md:p-6">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="font-display text-xl">{group.title}</h2>
+          <div key={group.id} className="rounded-xl border border-border bg-card px-4 py-3">
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg">{group.title}</h2>
               <span className="text-sm text-muted-foreground" aria-live="polite">
                 {done} из {group.items.length}
               </span>
             </div>
-            <div className="space-y-1">
+            <div>
               {group.items.map(([id, label]) => (
                 <label
                   key={id}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50"
+                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1 py-1 hover:bg-muted/50 md:min-h-8 md:[@media(pointer:coarse)]:min-h-11"
                 >
                   <input
                     type="checkbox"
