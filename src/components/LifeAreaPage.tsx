@@ -526,6 +526,16 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                       className="mt-4 min-h-36 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-muted-foreground outline-none placeholder:text-muted-foreground"
                     />
 
+                    {kind === "project" && (
+                      <button
+                        onClick={() => addAction(area)}
+                        className="mt-3 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Добавить действие
+                      </button>
+                    )}
+
                     <div className="mt-5 space-y-2">
                       {(area.actions ?? []).map((action) => (
                         <div
@@ -597,13 +607,15 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => addAction(area)}
-                        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Добавить действие
-                      </button>
+                      {kind !== "project" && (
+                        <button
+                          onClick={() => addAction(area)}
+                          className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--surface-elevated)] hover:text-foreground"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Добавить действие
+                        </button>
+                      )}
                       <button
                         onClick={() => removeLifeArea(area.id)}
                         className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
