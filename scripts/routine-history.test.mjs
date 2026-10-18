@@ -5,6 +5,7 @@ import {
   monthDays,
   monthStats,
   monthWeeks,
+  routineItems,
   shiftMonth,
 } from "../src/lib/routine-history.ts";
 import { routinePeriods } from "../src/lib/routine-periods.ts";
@@ -42,6 +43,33 @@ test("exclude today and pre-launch data, count missing completed days", () => {
     monthStats({ ...checks, "day:2026-10-13": { ...full, wake: false } }, "2026-10", "2026-10-15")
       .full,
     0,
+  );
+});
+test("weekends contain only reading and use separate statistics denominators", () => {
+  const full = { wake: true, nonfiction: true, fiction: true, sleep: true };
+  const checks = {
+    "day:2026-10-16": full,
+    "day:2026-10-17": { nonfiction: true, fiction: true },
+    "day:2026-10-18": { nonfiction: true, fiction: true },
+  };
+
+  assert.deepEqual(
+    routineItems("day", "2026-10-17").map(([id]) => id),
+    ["nonfiction", "fiction"],
+  );
+  assert.equal(completedCount({ "day:2026-10-17": full }, "day", "2026-10-17"), 2);
+
+  const stats = monthStats(checks, "2026-10", "2026-10-19");
+  assert.equal(stats.days, 6);
+  assert.equal(stats.full, 3);
+  assert.deepEqual(
+    stats.rules.map(({ id, done, total, percent }) => ({ id, done, total, percent })),
+    [
+      { id: "wake", done: 1, total: 4, percent: 25 },
+      { id: "nonfiction", done: 3, total: 6, percent: 50 },
+      { id: "fiction", done: 3, total: 6, percent: 50 },
+      { id: "sleep", done: 1, total: 4, percent: 25 },
+    ],
   );
 });
 test("weeks overlap month boundaries, exclude future and pre-launch weeks", () => {

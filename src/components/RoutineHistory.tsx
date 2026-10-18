@@ -7,6 +7,7 @@ import {
   monthWeeks,
   ROUTINE_STARTED_ON,
   routineGroups,
+  routineItems,
   shiftDate,
   shiftMonth,
 } from "@/lib/routine-history";
@@ -29,6 +30,7 @@ export function RoutineHistory({ periods }: { periods: { day: string; week: stri
   const stats = monthStats(checks, month, periods.day);
   const offset = (new Date(`${days[0]}T12:00:00Z`).getUTCDay() + 6) % 7;
   const selectedGroup = routineGroups.find((group) => group.id === selected?.kind);
+  const selectedItems = selected ? routineItems(selected.kind, selected.date) : [];
   const buttonClass =
     "min-h-11 rounded-lg border border-border px-3 text-sm hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed";
   const changeMonth = (amount: number) => {
@@ -86,27 +88,28 @@ export function RoutineHistory({ periods }: { periods: { day: string; week: stri
             {days.map((date) => {
               const available = date >= ROUTINE_STARTED_ON && date <= periods.day;
               const count = completedCount(checks, "day", date);
+              const target = routineItems("day", date).length;
               return (
                 <button
                   key={date}
                   type="button"
                   disabled={!available}
-                  aria-label={`${dateLabel(date)}: ${available ? `${count} из 4${date === periods.day ? ", сегодня" : ""}` : "вне периода учёта"}`}
+                  aria-label={`${dateLabel(date)}: ${available ? `${count} из ${target}${date === periods.day ? ", сегодня" : ""}` : "вне периода учёта"}`}
                   aria-pressed={selected?.kind === "day" && selected.date === date}
                   onClick={() => setSelected({ kind: "day", date })}
-                  className={`min-h-14 rounded-lg border p-1 text-sm disabled:opacity-30 ${selected?.kind === "day" && selected.date === date ? "ring-2 ring-[var(--gold)]" : ""} ${count === 4 && available ? "border-emerald-500/50 bg-emerald-500/15" : "border-border hover:bg-muted/50"} ${date === periods.day ? "font-bold underline" : ""}`}
+                  className={`min-h-14 rounded-lg border p-1 text-sm disabled:opacity-30 ${selected?.kind === "day" && selected.date === date ? "ring-2 ring-[var(--gold)]" : ""} ${count === target && available ? "border-emerald-500/50 bg-emerald-500/15" : "border-border hover:bg-muted/50"} ${date === periods.day ? "font-bold underline" : ""}`}
                 >
                   {Number(date.slice(-2))}
                   <span className="block text-[10px] text-muted-foreground">
-                    {available ? `${count}/4` : "—"}
+                    {available ? `${count}/${target}` : "—"}
                   </span>
                 </button>
               );
             })}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Нажми на дату, чтобы посмотреть или исправить отметки. Зелёный — 4/4, подчёркнутый —
-            сегодня.
+            Нажми на дату, чтобы посмотреть или исправить отметки. Зелёный — выполнены все пункты,
+            подчёркнутый — сегодня.
           </p>
         </div>
         <div>
@@ -122,7 +125,7 @@ export function RoutineHistory({ periods }: { periods: { day: string; week: stri
                 <div className="mb-1 flex justify-between gap-3 text-sm">
                   <span>{rule.label}</span>
                   <span className="shrink-0 text-muted-foreground">
-                    {rule.percent === null ? "—" : `${rule.done}/${stats.days} · ${rule.percent}%`}
+                    {rule.percent === null ? "—" : `${rule.done}/${rule.total} · ${rule.percent}%`}
                   </span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -165,7 +168,7 @@ export function RoutineHistory({ periods }: { periods: { day: string; week: stri
             Изменения сохраняются сразу и учитываются в статистике.
           </p>
           <div className="grid gap-1 sm:grid-cols-2">
-            {selectedGroup.items.map(([id, label]) => (
+            {selectedItems.map(([id, label]) => (
               <label key={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
                 <input
                   type="checkbox"

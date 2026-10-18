@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useCapital } from "@/lib/capital-store";
 import { routinePeriods } from "@/lib/routine-periods";
-import { routineGroups as groups } from "@/lib/routine-history";
+import { routineGroups as groups, routineItems } from "@/lib/routine-history";
 import { RoutineHistory } from "@/components/RoutineHistory";
 
 export function RoutineChecklist() {
@@ -26,17 +26,18 @@ export function RoutineChecklist() {
       {groups.map((group) => {
         const key = periods ? `${group.id}:${periods[group.id]}` : "";
         const checks = state.routineChecks?.[key] ?? {};
-        const done = group.items.filter(([id]) => checks[id] === true).length;
+        const items = periods ? routineItems(group.id, periods[group.id]) : group.items;
+        const done = items.filter(([id]) => checks[id] === true).length;
         return (
           <div key={group.id} className="rounded-xl border border-border bg-card px-4 py-3">
             <div className="mb-1 flex items-center justify-between gap-3">
               <h2 className="font-display text-lg">{group.title}</h2>
               <span className="text-sm text-muted-foreground" aria-live="polite">
-                {done} из {group.items.length}
+                {done} из {items.length}
               </span>
             </div>
             <div>
-              {group.items.map(([id, label]) => (
+              {items.map(([id, label]) => (
                 <label
                   key={id}
                   className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1 py-1 hover:bg-muted/50 md:min-h-8 md:[@media(pointer:coarse)]:min-h-11"

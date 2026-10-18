@@ -25,6 +25,19 @@ export const routineGroups = [
   },
 ] as const;
 
+const weekendDailyItemIds = new Set(["nonfiction", "fiction"]);
+
+export function isWeekend(date: string) {
+  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return day === 0 || day === 6;
+}
+
+export function routineItems(kind: "day" | "week", date: string) {
+  const group = routineGroups.find((entry) => entry.id === kind)!;
+  if (kind !== "day" || !isWeekend(date)) return group.items;
+  return group.items.filter(([id]) => weekendDailyItemIds.has(id));
+}
+
 export function shiftDate(date: string, days: number) {
   const value = new Date(`${date}T12:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
@@ -45,22 +58,27 @@ export function shiftMonth(month: string, amount: number) {
 }
 
 export function completedCount(checks: RoutineChecks, kind: "day" | "week", date: string) {
-  const group = routineGroups.find((entry) => entry.id === kind)!;
-  return group.items.filter(([id]) => checks[`${kind}:${date}`]?.[id] === true).length;
+  return routineItems(kind, date).filter(([id]) => checks[`${kind}:${date}`]?.[id] === true).length;
 }
 
 export function monthStats(checks: RoutineChecks, month: string, today: string) {
   const days = monthDays(month).filter((date) => date >= ROUTINE_STARTED_ON && date < today);
   return {
     days: days.length,
-    full: days.filter((date) => completedCount(checks, "day", date) === 4).length,
+    full: days.filter(
+      (date) => completedCount(checks, "day", date) === routineItems("day", date).length,
+    ).length,
     rules: routineGroups[0].items.map(([id, label]) => {
-      const done = days.filter((date) => checks[`day:${date}`]?.[id] === true).length;
+      const eligibleDays = days.filter((date) =>
+        routineItems("day", date).some(([itemId]) => itemId === id),
+      );
+      const done = eligibleDays.filter((date) => checks[`day:${date}`]?.[id] === true).length;
       return {
         id,
         label,
         done,
-        percent: days.length ? Math.round((done / days.length) * 100) : null,
+        total: eligibleDays.length,
+        percent: eligibleDays.length ? Math.round((done / eligibleDays.length) * 100) : null,
       };
     }),
   };
