@@ -195,19 +195,17 @@ export function LifeAreaPage({ kind, eyebrow, title, description, placeholder, e
   };
 
   const addAction = (area: LifeArea) => {
-    const actions = [
-      ...(area.actions ?? []),
-      {
-        id: `laa_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        title: "Новый шаг",
-        deadline: "",
-        status: "active" as const,
-        note: "",
-      },
-    ];
-    updateLifeArea(area.id, {
-      actions: area.kind === "project" ? orderActionsByDeadline(actions) : actions,
-    });
+    const action = {
+      id: `laa_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      title: "Новый шаг",
+      deadline: "",
+      status: "active" as const,
+      note: "",
+    };
+    const currentActions = area.actions ?? [];
+    const actions =
+      area.kind === "project" ? [action, ...currentActions] : [...currentActions, action];
+    updateLifeArea(area.id, { actions });
     setEditingAreaId(area.id);
   };
 
