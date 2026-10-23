@@ -1,5 +1,14 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useAuth } from "@/lib/auth";
+import { cloudValuesEqual, mergeCloudState } from "@/lib/cloud-state-sync";
 import {
   createFinanceAssistantRule,
   type FinanceAssistantRule,
@@ -174,6 +183,10 @@ interface CapitalState {
 // the load effect instead. New legacy keys go into LEGACY_STORAGE_KEYS
 // only when we truly need to retire a key.
 const STORAGE_KEY = "life-capital-v5";
+const CLOUD_BASE_KEY = `${STORAGE_KEY}-cloud-base`;
+const CLOUD_SAVE_DELAY_MS = 300;
+const CLOUD_REFRESH_INTERVAL_MS = 15_000;
+const MAX_CHANGE_LOG = 200;
 const LEGACY_STORAGE_KEYS = ["life-capital-v4", "life-capital-v3"];
 const LEGACY_META_KEYS = ["life-capital-v4-migrated-income-budget"];
 
@@ -705,6 +718,135 @@ const readStoredCapitalState = (key: string): Partial<CapitalState> | null => {
   }
 };
 
+export type CloudSyncStatus = "loading" | "saved" | "saving" | "offline" | "error";
+
+interface StoredCloudBase {
+  state: CapitalState;
+  updatedAt: string;
+}
+
+const cloudBaseStorageKey = (userId: string) => `${CLOUD_BASE_KEY}:${userId}`;
+
+const readStoredCloudBase = (userId: string): StoredCloudBase | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(cloudBaseStorageKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredCloudBase>;
+    if (!parsed.state || typeof parsed.updatedAt !== "string") return null;
+    return { state: normalizeCapitalState(parsed.state), updatedAt: parsed.updatedAt };
+  } catch {
+    return null;
+  }
+};
+
+const latestChangeTimestamp = (state: CapitalState) =>
+  (state.changeLog ?? []).reduce((latest, entry) => Math.max(latest, entry.ts || 0), 0);
+
+const normalizeSyncedCapitalState = (saved: Partial<CapitalState> | null | undefined) => {
+  const normalized = normalizeCapitalState(saved);
+  return {
+    ...normalized,
+    changeLog: [...(normalized.changeLog ?? [])]
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, MAX_CHANGE_LOG),
+  };
+};
+
+const collectionStateKeyByScope: Partial<Record<ChangeScope, keyof CapitalState>> = {
+  asset: "assets",
+  expense: "expenses",
+  target: "targets",
+  life_goal: "lifeGoals",
+  life_area: "lifeAreas",
+  cash_account: "cashAccounts",
+  transaction: "transactions",
+  transaction_category: "transactionCategories",
+  income: "incomeSources",
+};
+
+const recoverNewerLocalChanges = (
+  remoteState: CapitalState,
+  localState: CapitalState,
+  remoteUpdatedAt: string,
+) => {
+  const cutoff = Date.parse(remoteUpdatedAt);
+  const recentChanges = (localState.changeLog ?? [])
+    .filter((entry) => entry.ts > cutoff)
+    .sort((a, b) => a.ts - b.ts);
+  if (!recentChanges.length) return remoteState;
+
+  const next = { ...remoteState } as CapitalState;
+  const nextRecord = next as unknown as Record<string, unknown>;
+  const localRecord = localState as unknown as Record<string, unknown>;
+
+  recentChanges.forEach((entry) => {
+    if (entry.scope === "state" && entry.field) {
+      nextRecord[entry.field] = mergeCloudState(
+        entry.before,
+        entry.after !== undefined ? entry.after : localRecord[entry.field],
+        nextRecord[entry.field],
+      );
+      return;
+    }
+
+    const stateKey = collectionStateKeyByScope[entry.scope];
+    if (!stateKey) return;
+    const remoteItems = Array.isArray(next[stateKey])
+      ? ([...(next[stateKey] as unknown[])] as Array<Record<string, unknown>>)
+      : [];
+    const localItems = Array.isArray(localState[stateKey])
+      ? (localState[stateKey] as unknown as Array<Record<string, unknown>>)
+      : [];
+
+    if (!entry.entityId) {
+      if (entry.action === "add") {
+        const knownIds = new Set(
+          remoteItems.map((item) => item.id).filter((id): id is string => typeof id === "string"),
+        );
+        const additions = localItems.filter(
+          (item) => typeof item.id === "string" && !knownIds.has(item.id),
+        );
+        nextRecord[stateKey] = [...additions, ...remoteItems];
+      }
+      return;
+    }
+
+    const remoteIndex = remoteItems.findIndex((item) => item.id === entry.entityId);
+    const localItem = localItems.find((item) => item.id === entry.entityId);
+    if (entry.action === "remove") {
+      nextRecord[stateKey] = remoteItems.filter((item) => item.id !== entry.entityId);
+      return;
+    }
+    if (!localItem) return;
+
+    if (remoteIndex < 0) {
+      remoteItems.push(localItem);
+    } else if (entry.action === "add") {
+      remoteItems[remoteIndex] = mergeCloudState({}, localItem, remoteItems[remoteIndex]);
+    } else if (entry.field) {
+      remoteItems[remoteIndex] = {
+        ...remoteItems[remoteIndex],
+        [entry.field]: mergeCloudState(
+          entry.before,
+          entry.after !== undefined ? entry.after : localItem[entry.field],
+          remoteItems[remoteIndex][entry.field],
+        ),
+      };
+    } else {
+      remoteItems[remoteIndex] = localItem;
+    }
+    nextRecord[stateKey] = remoteItems;
+  });
+
+  next.changeLog = mergeCloudState(
+    { entries: [] as ChangeEntry[] },
+    { entries: recentChanges },
+    { entries: remoteState.changeLog ?? [] },
+  ).entries;
+  return normalizeSyncedCapitalState(next);
+};
+
 const isSettledIncomeTransaction = (transaction: MoneyTransaction) =>
   transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID;
 
@@ -730,6 +872,7 @@ const applyAccountDelta = (state: CapitalState, accountId: string, delta: number
 
 interface Ctx {
   state: CapitalState;
+  syncStatus: CloudSyncStatus;
   update: (patch: Partial<CapitalState>) => void;
   updateAsset: (id: string, patch: Partial<Asset>) => void;
   addAsset: (a: Asset) => void;
@@ -787,8 +930,53 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CapitalState>(defaultState);
   const [localReady, setLocalReady] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>("loading");
   const [calendarMonthKey, setCalendarMonthKey] = useState(localMonthKey);
   const stateRef = useRef(state);
+  const cloudBaseRef = useRef<CapitalState | null>(null);
+  const cloudUpdatedAtRef = useRef<string | null>(null);
+  const cloudReadyRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const saveQueuedRef = useRef(false);
+  const resetInFlightRef = useRef(false);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveCloudStateRef = useRef<() => Promise<void>>(async () => {});
+
+  const persistLocalState = useCallback((next: CapitalState) => {
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
+    } catch {
+      // The in-memory state remains valid when browser storage is unavailable.
+    }
+  }, []);
+
+  const replaceState = useCallback(
+    (next: CapitalState) => {
+      const normalized = normalizeSyncedCapitalState(next);
+      stateRef.current = normalized;
+      persistLocalState(normalized);
+      setState(normalized);
+    },
+    [persistLocalState],
+  );
+
+  const rememberCloudBase = useCallback((next: CapitalState, updatedAt: string, userId: string) => {
+    const normalized = normalizeSyncedCapitalState(next);
+    cloudBaseRef.current = normalized;
+    cloudUpdatedAtRef.current = updatedAt;
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          cloudBaseStorageKey(userId),
+          JSON.stringify({ state: normalized, updatedAt } satisfies StoredCloudBase),
+        );
+      }
+    } catch {
+      // Cloud synchronization still works when this cache cannot be written.
+    }
+  }, []);
 
   useEffect(() => {
     stateRef.current = state;
@@ -915,90 +1103,372 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!localReady || !user?.id || !supabase) {
-      setCloudReady(false);
+  const performCloudSave = useCallback(async () => {
+    const userId = user?.id;
+    if (!supabase || !userId || !cloudReadyRef.current || resetInFlightRef.current) return;
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      saveQueuedRef.current = true;
+      setSyncStatus("offline");
       return;
     }
 
+    if (saveInFlightRef.current) {
+      saveQueuedRef.current = true;
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    saveQueuedRef.current = false;
+    setSyncStatus("saving");
+    let localSnapshot = normalizeSyncedCapitalState(stateRef.current);
+
+    try {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const expectedUpdatedAt = cloudUpdatedAtRef.current;
+        const knownBase = cloudBaseRef.current;
+
+        if (knownBase && cloudValuesEqual(localSnapshot, knownBase)) {
+          setSyncStatus("saved");
+          return;
+        }
+        if (!expectedUpdatedAt && isDefaultLikeCapitalState(localSnapshot)) {
+          setSyncStatus("saved");
+          return;
+        }
+
+        const nextUpdatedAt = new Date().toISOString();
+        let savedRow: { state: unknown; updated_at: string } | null = null;
+        let saveError: { code?: string; message?: string } | null = null;
+
+        if (expectedUpdatedAt) {
+          const result = await supabase
+            .from("capital_states")
+            .update({ state: localSnapshot, updated_at: nextUpdatedAt })
+            .eq("user_id", userId)
+            .eq("updated_at", expectedUpdatedAt)
+            .select("state, updated_at")
+            .maybeSingle();
+          savedRow = result.data;
+          saveError = result.error;
+        } else {
+          const result = await supabase
+            .from("capital_states")
+            .insert({ user_id: userId, state: localSnapshot, updated_at: nextUpdatedAt })
+            .select("state, updated_at")
+            .maybeSingle();
+          savedRow = result.data;
+          saveError = result.error;
+        }
+
+        const insertConflict = !expectedUpdatedAt && saveError?.code === "23505";
+        if (saveError && !insertConflict) throw saveError;
+
+        if (savedRow?.state && savedRow.updated_at) {
+          const savedState = normalizeSyncedCapitalState(savedRow.state as Partial<CapitalState>);
+          rememberCloudBase(savedState, savedRow.updated_at, userId);
+
+          const current = normalizeSyncedCapitalState(stateRef.current);
+          const nextCurrent = cloudValuesEqual(current, localSnapshot)
+            ? savedState
+            : normalizeSyncedCapitalState(mergeCloudState(localSnapshot, current, savedState));
+          if (!cloudValuesEqual(current, nextCurrent)) replaceState(nextCurrent);
+
+          if (!cloudValuesEqual(nextCurrent, savedState)) {
+            saveQueuedRef.current = true;
+          } else {
+            setSyncStatus("saved");
+          }
+          return;
+        }
+
+        const { data: remoteRow, error: remoteError } = await supabase
+          .from("capital_states")
+          .select("state, updated_at")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (remoteError) throw remoteError;
+
+        const current = normalizeSyncedCapitalState(stateRef.current);
+        if (!remoteRow?.state || !remoteRow.updated_at) {
+          cloudBaseRef.current = null;
+          cloudUpdatedAtRef.current = null;
+          localSnapshot = current;
+          continue;
+        }
+
+        const remoteState = normalizeSyncedCapitalState(remoteRow.state as Partial<CapitalState>);
+        const mergeBase = knownBase ?? normalizeSyncedCapitalState(defaultState);
+        localSnapshot = normalizeSyncedCapitalState(
+          mergeCloudState(mergeBase, current, remoteState),
+        );
+        rememberCloudBase(remoteState, remoteRow.updated_at, userId);
+        if (!cloudValuesEqual(current, localSnapshot)) replaceState(localSnapshot);
+      }
+
+      throw new Error("Cloud state changed repeatedly while saving");
+    } catch (error) {
+      console.error("Unable to save cloud capital state", error);
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      saveQueuedRef.current = isOffline;
+      setSyncStatus(isOffline ? "offline" : "error");
+    } finally {
+      saveInFlightRef.current = false;
+      if (saveQueuedRef.current && typeof window !== "undefined" && navigator.onLine) {
+        window.setTimeout(() => void saveCloudStateRef.current(), 0);
+      }
+    }
+  }, [rememberCloudBase, replaceState, user?.id]);
+
+  saveCloudStateRef.current = performCloudSave;
+
+  useEffect(() => {
+    if (!localReady || !user?.id || !supabase) {
+      cloudReadyRef.current = false;
+      setCloudReady(false);
+      setSyncStatus(user?.id ? "loading" : "saved");
+      return;
+    }
+
+    const userId = user.id;
+    const client = supabase;
     let cancelled = false;
+    saveQueuedRef.current = false;
+    cloudReadyRef.current = false;
     setCloudReady(false);
+    setSyncStatus("loading");
 
     const loadCloudState = async () => {
-      const { data, error } = await supabase
+      const storedBase = readStoredCloudBase(userId);
+      const { data, error } = await client
         .from("capital_states")
-        .select("state")
-        .eq("user_id", user.id)
+        .select("state, updated_at")
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (cancelled) return;
 
       if (error) {
         console.error("Unable to load cloud capital state", error);
+        cloudReadyRef.current = true;
         setCloudReady(true);
+        setSyncStatus(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
         return;
       }
 
-      if (data?.state) {
-        const next = normalizeCapitalState(data.state as Partial<CapitalState>);
-        try {
-          if (typeof window !== "undefined") {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-          }
-        } catch {}
-        setState(next);
-        setCloudReady(true);
-        return;
-      }
+      const localState = normalizeSyncedCapitalState(stateRef.current);
+      if (data?.state && data.updated_at) {
+        const remoteState = normalizeSyncedCapitalState(data.state as Partial<CapitalState>);
+        let next = remoteState;
 
-      const localState = normalizeCapitalState(stateRef.current);
-      if (!isDefaultLikeCapitalState(localState)) {
-        const { error: upsertError } = await supabase
-          .from("capital_states")
-          .upsert(
-            {
-              user_id: user.id,
-              state: localState,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id" },
+        if (storedBase) {
+          next = normalizeSyncedCapitalState(
+            mergeCloudState(storedBase.state, localState, remoteState),
           );
-        if (upsertError) console.error("Unable to initialize cloud capital state", upsertError);
+        } else if (latestChangeTimestamp(localState) > Date.parse(data.updated_at)) {
+          // Older versions did not store a common base. If this browser has a
+          // newer local edit, replay only those newer edits over the cloud copy.
+          next = recoverNewerLocalChanges(remoteState, localState, data.updated_at);
+        }
+
+        rememberCloudBase(remoteState, data.updated_at, userId);
+        if (!cloudValuesEqual(localState, next)) replaceState(next);
+        if (!cloudValuesEqual(next, remoteState)) saveQueuedRef.current = true;
+      } else {
+        cloudBaseRef.current = null;
+        cloudUpdatedAtRef.current = null;
+        if (storedBase) {
+          replaceState(defaultState);
+          try {
+            window.localStorage.removeItem(cloudBaseStorageKey(userId));
+          } catch {
+            // The in-memory reset still applies when the cache cannot be removed.
+          }
+        } else if (!isDefaultLikeCapitalState(localState)) {
+          saveQueuedRef.current = true;
+        }
       }
 
-      if (!cancelled) setCloudReady(true);
+      cloudReadyRef.current = true;
+      setCloudReady(true);
+      setSyncStatus(saveQueuedRef.current ? "saving" : "saved");
+      if (saveQueuedRef.current) void saveCloudStateRef.current();
     };
 
     void loadCloudState();
 
     return () => {
       cancelled = true;
+      cloudReadyRef.current = false;
     };
-  }, [localReady, user?.id]);
+  }, [localReady, rememberCloudBase, replaceState, user?.id]);
+
+  const refreshCloudState = useCallback(async () => {
+    const userId = user?.id;
+    if (
+      !supabase ||
+      !userId ||
+      !cloudReadyRef.current ||
+      saveInFlightRef.current ||
+      resetInFlightRef.current
+    ) {
+      return;
+    }
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setSyncStatus("offline");
+      return;
+    }
+
+    const { data: versionRow, error: versionError } = await supabase
+      .from("capital_states")
+      .select("updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (versionError) {
+      console.error("Unable to refresh cloud capital state", versionError);
+      setSyncStatus("error");
+      return;
+    }
+
+    const localState = normalizeSyncedCapitalState(stateRef.current);
+    if (!versionRow?.updated_at) {
+      const hadCloudBase = cloudBaseRef.current !== null;
+      cloudBaseRef.current = null;
+      cloudUpdatedAtRef.current = null;
+      if (hadCloudBase) {
+        replaceState(defaultState);
+        try {
+          window.localStorage.removeItem(cloudBaseStorageKey(userId));
+        } catch {
+          // The in-memory reset still applies when the cache cannot be removed.
+        }
+        setSyncStatus("saved");
+      } else if (!isDefaultLikeCapitalState(localState)) {
+        saveQueuedRef.current = true;
+        void saveCloudStateRef.current();
+      } else {
+        setSyncStatus("saved");
+      }
+      return;
+    }
+
+    if (versionRow.updated_at === cloudUpdatedAtRef.current) {
+      if (cloudBaseRef.current && cloudValuesEqual(localState, cloudBaseRef.current)) {
+        setSyncStatus("saved");
+      } else {
+        saveQueuedRef.current = true;
+        setSyncStatus("saving");
+        void saveCloudStateRef.current();
+      }
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("capital_states")
+      .select("state, updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Unable to load refreshed cloud capital state", error);
+      setSyncStatus("error");
+      return;
+    }
+    if (!data?.state || !data.updated_at) {
+      cloudBaseRef.current = null;
+      cloudUpdatedAtRef.current = null;
+      replaceState(defaultState);
+      setSyncStatus("saved");
+      return;
+    }
+
+    const currentState = normalizeSyncedCapitalState(stateRef.current);
+    const remoteState = normalizeSyncedCapitalState(data.state as Partial<CapitalState>);
+    const mergeBase = cloudBaseRef.current ?? remoteState;
+    const next = normalizeSyncedCapitalState(mergeCloudState(mergeBase, currentState, remoteState));
+    rememberCloudBase(remoteState, data.updated_at, userId);
+    if (!cloudValuesEqual(currentState, next)) replaceState(next);
+
+    if (!cloudValuesEqual(next, remoteState)) {
+      saveQueuedRef.current = true;
+      void saveCloudStateRef.current();
+    } else {
+      setSyncStatus("saved");
+    }
+  }, [rememberCloudBase, replaceState, user?.id]);
+
+  useEffect(() => {
+    if (!cloudReady || !user?.id) return;
+
+    const refresh = () => void refreshCloudState();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      } else {
+        if (saveTimerRef.current !== null) {
+          window.clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        void saveCloudStateRef.current();
+      }
+    };
+    const handlePageHide = () => void saveCloudStateRef.current();
+    const handleOnline = () => {
+      refresh();
+      void saveCloudStateRef.current();
+    };
+    const handleOffline = () => setSyncStatus("offline");
+
+    const interval = window.setInterval(refresh, CLOUD_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [cloudReady, refreshCloudState, user?.id]);
 
   useEffect(() => {
     if (!cloudReady || !user?.id || !supabase) return;
 
-    const next = normalizeCapitalState(state);
-    if (isDefaultLikeCapitalState(next)) return;
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    const next = normalizeSyncedCapitalState(state);
+    if (cloudBaseRef.current && cloudValuesEqual(next, cloudBaseRef.current)) {
+      setSyncStatus("saved");
+      return;
+    }
+    if (!cloudBaseRef.current && isDefaultLikeCapitalState(next)) {
+      setSyncStatus("saved");
+      return;
+    }
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      saveQueuedRef.current = true;
+      setSyncStatus("offline");
+      return;
+    }
 
-    const timer = window.setTimeout(() => {
-      void supabase
-        .from("capital_states")
-        .upsert(
-          {
-            user_id: user.id,
-            state: next,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        )
-        .then(({ error }) => {
-          if (error) console.error("Unable to save cloud capital state", error);
-        });
-    }, 900);
+    saveQueuedRef.current = true;
+    setSyncStatus("saving");
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void saveCloudStateRef.current();
+    }, CLOUD_SAVE_DELAY_MS);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
   }, [cloudReady, state, user?.id]);
 
   useEffect(() => {
@@ -1007,6 +1477,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     setState((current) => {
       const next = closePreviousExpenseMonth(current, calendarMonthKey);
       if (next === current) return current;
+      stateRef.current = next;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -1021,6 +1492,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const commit = (updater: (s: CapitalState) => CapitalState) => {
     setState((s) => {
       const next = updater(s);
+      stateRef.current = next;
       try {
         if (typeof window !== "undefined") {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -1030,7 +1502,6 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const MAX_LOG = 200;
   const pushLog = (s: CapitalState, entries: Omit<ChangeEntry, "id" | "ts">[]): CapitalState => {
     if (!entries.length) return s;
     const now = Date.now();
@@ -1039,7 +1510,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
       id: `c${now}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
       ts: now,
     }));
-    const log = [...fresh, ...(s.changeLog ?? [])].slice(0, MAX_LOG);
+    const log = [...fresh, ...(s.changeLog ?? [])].slice(0, MAX_CHANGE_LOG);
     return { ...s, changeLog: log };
   };
 
@@ -1392,17 +1863,54 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const clearChangeLog = () => commit((s) => ({ ...s, changeLog: [] }));
 
   const reset = () => {
+    resetInFlightRef.current = true;
+    saveQueuedRef.current = false;
+    cloudBaseRef.current = null;
+    cloudUpdatedAtRef.current = null;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    setSyncStatus("saving");
     try {
       if (typeof window !== "undefined") {
-        localStorage.removeItem(STORAGE_KEY);
-      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
-      LEGACY_META_KEYS.forEach((key) => localStorage.removeItem(key));
-      localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+        LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+        LEGACY_META_KEYS.forEach((key) => localStorage.removeItem(key));
+        localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
+        if (user?.id) localStorage.removeItem(cloudBaseStorageKey(user.id));
       }
     } catch {}
     if (supabase && user?.id) {
-      void supabase.from("capital_states").delete().eq("user_id", user.id);
+      const userId = user.id;
+      const updatedAt = new Date().toISOString();
+      void supabase
+        .from("capital_states")
+        .upsert(
+          { user_id: userId, state: defaultState, updated_at: updatedAt },
+          { onConflict: "user_id" },
+        )
+        .select("state, updated_at")
+        .single()
+        .then(({ data, error }) => {
+          resetInFlightRef.current = false;
+          if (error) {
+            console.error("Unable to reset cloud capital state", error);
+            setSyncStatus("error");
+          } else {
+            rememberCloudBase(
+              normalizeSyncedCapitalState(data.state as Partial<CapitalState>),
+              data.updated_at,
+              userId,
+            );
+            setSyncStatus("saved");
+          }
+        });
+    } else {
+      resetInFlightRef.current = false;
+      setSyncStatus("saved");
     }
+    stateRef.current = defaultState;
     setState(defaultState);
   };
 
@@ -1441,6 +1949,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
     <CapitalContext.Provider
       value={{
         state,
+        syncStatus,
         update,
         updateAsset,
         addAsset,

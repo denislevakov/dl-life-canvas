@@ -58,16 +58,37 @@ const navGroups = [
   },
 ] as const;
 
-const nav = navGroups.flatMap((group) => group.items);
+type NavItem = (typeof navGroups)[number]["items"][number];
+
+const nav: NavItem[] = navGroups.flatMap((group) => [...group.items] as NavItem[]);
 
 function AccountPanel() {
   const { user, signOut } = useAuth();
+  const { syncStatus } = useCapital();
+  const syncLabel = {
+    loading: "Подключаю синхронизацию…",
+    saved: "Данные синхронизированы",
+    saving: "Сохраняю изменения…",
+    offline: "Нет сети — сохраню позже",
+    error: "Не удалось синхронизировать",
+  }[syncStatus];
+  const syncDotClass = {
+    loading: "bg-muted-foreground",
+    saved: "bg-emerald-500",
+    saving: "bg-[color:var(--gold)]",
+    offline: "bg-amber-500",
+    error: "bg-destructive",
+  }[syncStatus];
 
   return (
     <div className="rounded-md border border-border bg-[color:var(--surface-elevated)]/50 p-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <UserCircle className="h-4 w-4 text-[color:var(--gold)]" />
         <span className="truncate">{user?.email ?? "Аккаунт"}</span>
+      </div>
+      <div className="mt-2 flex items-center gap-2 px-2 text-[11px] text-muted-foreground">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${syncDotClass}`} />
+        <span>{syncLabel}</span>
       </div>
       <button
         onClick={() => void signOut()}
@@ -77,6 +98,33 @@ function AccountPanel() {
         <span>Выйти</span>
       </button>
     </div>
+  );
+}
+
+function MobileSyncIndicator() {
+  const { syncStatus } = useCapital();
+  const syncLabel = {
+    loading: "Подключаю синхронизацию",
+    saved: "Данные синхронизированы",
+    saving: "Сохраняю изменения",
+    offline: "Нет сети — изменения сохранятся позже",
+    error: "Не удалось синхронизировать",
+  }[syncStatus];
+  const syncDotClass = {
+    loading: "bg-muted-foreground",
+    saved: "bg-emerald-500",
+    saving: "bg-[color:var(--gold)]",
+    offline: "bg-amber-500",
+    error: "bg-destructive",
+  }[syncStatus];
+
+  return (
+    <span
+      className={`h-2 w-2 rounded-full ${syncDotClass}`}
+      aria-label={syncLabel}
+      title={syncLabel}
+      role="status"
+    />
   );
 }
 
@@ -97,7 +145,6 @@ function ResetButton() {
             onClick={() => {
               reset();
               setConfirming(false);
-              window.location.reload();
             }}
             className="flex-1 rounded-md bg-destructive px-2 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
           >
@@ -197,6 +244,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="font-display text-lg">LIFE IS GOOD</div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">37–40</div>
+              <MobileSyncIndicator />
               <ThemeToggle compact theme={theme} onToggle={toggleTheme} />
               <button
                 onClick={() => void signOut()}
