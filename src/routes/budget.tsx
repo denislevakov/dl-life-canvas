@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, ChevronDown, FileText, GripVertical, Plus, Trash2, Upload } from "lucide-react";
 
+import { BudgetHistoryChart } from "@/components/BudgetHistoryChart";
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
 import { REVIEW_CATEGORY_ID, useCapital, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
@@ -186,7 +187,6 @@ function BudgetPage() {
   const averageMonthlyIncome = completedMonths.length
     ? completedMonths.reduce((sum, month) => sum + month.income, 0) / completedMonths.length
     : 0;
-  const selectedMonthSummary = monthlyHistory.find((month) => month.monthKey === selectedHistoryMonth) ?? null;
   const scenarioExpense = state.minExpense;
   const minIncomeScenario = {
     income: state.minIncome,
@@ -921,69 +921,20 @@ function BudgetPage() {
         </div>
 
         {monthlyHistory.length ? (
-          <div className="grid gap-3">
-            {monthlyHistory.slice(0, 12).map((month) => {
-              const isSelected = selectedHistoryMonth === month.monthKey;
-              return (
-                <button
-                  key={month.monthKey}
-                  type="button"
-                  onClick={() => setSelectedHistoryMonth(isSelected ? null : month.monthKey)}
-                  className="grid gap-3 border-b border-border py-3 text-left last:border-b-0 md:grid-cols-[minmax(150px,1fr)_180px_180px_auto] md:items-center"
-                >
-                  <div className="flex items-center gap-2 text-sm capitalize text-foreground">
-                    {formatMonthKey(month.monthKey)}
-                    {month.monthKey === currentMonthKey ? (
-                      <span className="rounded border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">текущий</span>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground md:justify-end">
-                    <span>Расходы</span>
-                    <span className="tabular text-sm text-foreground">{formatRub(month.expense)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground md:justify-end">
-                    <span>Доходы</span>
-                    <span className="tabular text-sm text-[color:oklch(0.7_0.1_160)]">{formatRub(month.income)}</span>
-                  </div>
-                  <div className="inline-flex items-center justify-end text-muted-foreground">
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isSelected ? "rotate-180" : ""}`} />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <BudgetHistoryChart
+            months={monthlyHistory}
+            currentMonthKey={currentMonthKey}
+            selectedMonthKey={selectedHistoryMonth}
+            onSelectMonth={(monthKey) =>
+              setSelectedHistoryMonth((current) => (current === monthKey ? null : monthKey))
+            }
+          />
         ) : (
           <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
             История появится после добавления первой операции.
           </div>
         )}
 
-        {selectedMonthSummary ? (
-          <div className="mt-5 grid gap-6 border-t border-border pt-5 md:grid-cols-2">
-            <div>
-              <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Расходы</div>
-              <div className="grid gap-2">
-                {selectedMonthSummary.expenseCategories.length ? selectedMonthSummary.expenseCategories.map((category) => (
-                  <div key={category.name} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">{category.name}</span>
-                    <span className="tabular text-foreground">{formatRub(category.total)}</span>
-                  </div>
-                )) : <div className="text-sm text-muted-foreground">Нет расходов</div>}
-              </div>
-            </div>
-            <div>
-              <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Доходы</div>
-              <div className="grid gap-2">
-                {selectedMonthSummary.incomeCategories.length ? selectedMonthSummary.incomeCategories.map((category) => (
-                  <div key={category.name} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">{category.name}</span>
-                    <span className="tabular text-[color:oklch(0.7_0.1_160)]">{formatRub(category.total)}</span>
-                  </div>
-                )) : <div className="text-sm text-muted-foreground">Нет доходов</div>}
-              </div>
-            </div>
-          </div>
-        ) : null}
       </section>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
