@@ -18,6 +18,7 @@ import { Route as HobbiesRouteImport } from './routes/hobbies'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as FreedomRouteImport } from './routes/freedom'
+import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as IndexRouteImport } from './routes/index'
@@ -67,6 +68,11 @@ const FreedomRoute = FreedomRouteImport.update({
   path: '/freedom',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChecklistRoute = ChecklistRouteImport.update({
+  id: '/checklist',
+  path: '/checklist',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BudgetRoute = BudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/checklist': typeof ChecklistRoute
   '/freedom': typeof FreedomRoute
   '/goals': typeof GoalsRoute
   '/health': typeof HealthRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/checklist': typeof ChecklistRoute
   '/freedom': typeof FreedomRoute
   '/goals': typeof GoalsRoute
   '/health': typeof HealthRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/budget': typeof BudgetRoute
+  '/checklist': typeof ChecklistRoute
   '/freedom': typeof FreedomRoute
   '/goals': typeof GoalsRoute
   '/health': typeof HealthRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/budget'
+    | '/checklist'
     | '/freedom'
     | '/goals'
     | '/health'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/budget'
+    | '/checklist'
     | '/freedom'
     | '/goals'
     | '/health'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/budget'
+    | '/checklist'
     | '/freedom'
     | '/goals'
     | '/health'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssetsRoute: typeof AssetsRoute
   BudgetRoute: typeof BudgetRoute
+  ChecklistRoute: typeof ChecklistRoute
   FreedomRoute: typeof FreedomRoute
   GoalsRoute: typeof GoalsRoute
   HealthRoute: typeof HealthRoute
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FreedomRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/checklist': {
+      id: '/checklist'
+      path: '/checklist'
+      fullPath: '/checklist'
+      preLoaderRoute: typeof ChecklistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/budget': {
       id: '/budget'
       path: '/budget'
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssetsRoute: AssetsRoute,
   BudgetRoute: BudgetRoute,
+  ChecklistRoute: ChecklistRoute,
   FreedomRoute: FreedomRoute,
   GoalsRoute: GoalsRoute,
   HealthRoute: HealthRoute,

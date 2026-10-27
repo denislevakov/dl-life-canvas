@@ -4,9 +4,11 @@ import {
   completedCount,
   monthDays,
   monthStats,
+  monthWeekStats,
   monthWeeks,
   routineItems,
   shiftMonth,
+  weekStart,
 } from "../src/lib/routine-history.ts";
 import { routinePeriods } from "../src/lib/routine-periods.ts";
 
@@ -73,6 +75,28 @@ test("weekends contain only reading and use separate statistics denominators", (
   );
 });
 test("weeks overlap month boundaries, exclude future and pre-launch weeks", () => {
+  assert.equal(weekStart("2026-10-26"), "2026-10-26");
+  assert.equal(weekStart("2026-11-01"), "2026-10-26");
   assert.deepEqual(monthWeeks("2026-10", "2026-10-12"), ["2026-10-12"]);
   assert.deepEqual(monthWeeks("2026-11", "2026-11-02"), ["2026-10-26", "2026-11-02"]);
+});
+
+test("weekly stats count empty finished weeks and exclude the current week", () => {
+  const checks = {
+    "week:2026-10-12": { workouts: true, active: true, rest: true, pool: true },
+    "week:2026-10-26": { workouts: true },
+  };
+  const stats = monthWeekStats(checks, "2026-10", "2026-10-26");
+
+  assert.equal(stats.weeks, 2);
+  assert.equal(stats.full, 1);
+  assert.deepEqual(
+    stats.rules.map(({ id, done, total, percent }) => ({ id, done, total, percent })),
+    [
+      { id: "workouts", done: 1, total: 2, percent: 50 },
+      { id: "active", done: 1, total: 2, percent: 50 },
+      { id: "rest", done: 1, total: 2, percent: 50 },
+      { id: "pool", done: 1, total: 2, percent: 50 },
+    ],
+  );
 });

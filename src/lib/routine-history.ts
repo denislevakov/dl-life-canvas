@@ -44,6 +44,12 @@ export function shiftDate(date: string, days: number) {
   return value.toISOString().slice(0, 10);
 }
 
+export function weekStart(date: string) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7));
+  return value.toISOString().slice(0, 10);
+}
+
 export function monthDays(month: string) {
   const result: string[] = [];
   for (let date = `${month}-01`; date.startsWith(month); date = shiftDate(date, 1))
@@ -96,4 +102,26 @@ export function monthWeeks(month: string, currentWeek: string) {
     if (shiftDate(date, 6) >= ROUTINE_STARTED_ON && date <= currentWeek) weeks.push(date);
   }
   return weeks;
+}
+
+export function monthWeekStats(checks: RoutineChecks, month: string, currentWeek: string) {
+  const weeks = monthWeeks(month, currentWeek).filter(
+    (week) => week.startsWith(month) && week < currentWeek,
+  );
+  return {
+    weeks: weeks.length,
+    full: weeks.filter(
+      (week) => completedCount(checks, "week", week) === routineItems("week", week).length,
+    ).length,
+    rules: routineGroups[1].items.map(([id, label]) => {
+      const done = weeks.filter((week) => checks[`week:${week}`]?.[id] === true).length;
+      return {
+        id,
+        label,
+        done,
+        total: weeks.length,
+        percent: weeks.length ? Math.round((done / weeks.length) * 100) : null,
+      };
+    }),
+  };
 }

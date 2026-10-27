@@ -21,6 +21,7 @@ import {
   Brain,
   Gamepad2,
   HeartPulse,
+  ClipboardCheck,
 } from "lucide-react";
 
 const navGroups = [
@@ -30,6 +31,7 @@ const navGroups = [
       { to: "/", label: "Обзор", icon: LayoutDashboard },
       { to: "/projects", label: "Проекты", icon: FolderKanban },
       { to: "/goals", label: "Цели и задачи", icon: ListChecks },
+      { to: "/checklist", label: "Чеклист", icon: ClipboardCheck },
     ],
   },
   {

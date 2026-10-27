@@ -3,7 +3,6 @@ import { ArrowUpRight, Brain, Compass, FolderKanban, Gamepad2, HeartPulse, ListC
 
 import { MetricCard, PageContainer } from "@/components/MetricCard";
 import { ProgressBar } from "@/components/ProgressBar";
-import { RoutineChecklist } from "@/components/RoutineChecklist";
 import { useCapital } from "@/lib/capital-store";
 import { formatMillions, formatRange, formatRub } from "@/lib/format";
 
@@ -98,8 +97,6 @@ function Index() {
           <div className="mt-1 text-xs text-muted-foreground">{currentStage.focus}</div>
         </div>
       </div>
-
-      <RoutineChecklist />
 
       <div className="relative mb-6 overflow-hidden rounded-xl border border-border bg-card p-6 md:p-8">
         <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{ background: "var(--gradient-gold)" }} />
