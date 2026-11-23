@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useAuth } from "@/lib/auth";
 import { cloudValuesEqual, mergeCloudState } from "@/lib/cloud-state-sync";
+import { isConfirmedBudgetTransaction } from "@/lib/budget-statistics";
 import {
   createFinanceAssistantRule,
   type FinanceAssistantRule,
@@ -1926,11 +1927,30 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const transactions = state.transactions ?? [];
   const monthKey = calendarMonthKey;
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(monthKey));
+  const transactionCategoryNameById = new Map(
+    (state.transactionCategories ?? []).map((category) => [category.id, category.name]),
+  );
   const monthExpenseTotal = monthTransactions
-    .filter((transaction) => transaction.type === "expense")
+    .filter(
+      (transaction) =>
+        transaction.type === "expense" &&
+        isConfirmedBudgetTransaction(
+          transaction,
+          transactionCategoryNameById,
+          REVIEW_CATEGORY_ID,
+        ),
+    )
     .reduce((s, transaction) => s + transaction.amount, 0);
   const monthIncomeTotal = monthTransactions
-    .filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID)
+    .filter(
+      (transaction) =>
+        transaction.type === "income" &&
+        isConfirmedBudgetTransaction(
+          transaction,
+          transactionCategoryNameById,
+          REVIEW_CATEGORY_ID,
+        ),
+    )
     .reduce((s, transaction) => s + transaction.amount, 0);
   const cardCashBaseBalance = cashAccounts
     .filter((account) => account.kind === "card" || account.kind === "cash")
@@ -1938,7 +1958,7 @@ export function CapitalProvider({ children }: { children: ReactNode }) {
   const cardCashExpenseBaseline = Math.max(0, state.cardCashExpenseBaseline ?? 0);
   const balanceMonthKey = state.cardCashExpenseBaselineMonth ?? monthKey;
   const balanceMonthExpenseTotal = balanceMonthKey === monthKey
-    ? monthExpenseTotal
+    ? expenseTotalForMonth(state, monthKey)
     : expenseTotalForMonth(state, balanceMonthKey);
   const cardCashExpenseDelta = Math.max(0, balanceMonthExpenseTotal - cardCashExpenseBaseline);
   const cardCashBalance = cardCashBaseBalance - cardCashExpenseDelta;

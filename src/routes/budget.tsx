@@ -6,6 +6,7 @@ import { BudgetHistoryChart } from "@/components/BudgetHistoryChart";
 import { EditableNumber } from "@/components/EditableNumber";
 import { PageContainer, PageHeader } from "@/components/MetricCard";
 import { REVIEW_CATEGORY_ID, useCapital, type MoneyTransaction, type MoneyTransactionType } from "@/lib/capital-store";
+import { buildBudgetMonthlyHistory, isConfirmedBudgetTransaction } from "@/lib/budget-statistics";
 import { formatRub } from "@/lib/format";
 import { formatMonthKey, localDateKey, localMonthKey } from "@/lib/local-date";
 
@@ -83,26 +84,53 @@ function BudgetPage() {
     [currentMonthKey, transactions],
   );
   const reviewTransactions = useMemo(
-    () => currentMonthTransactions.filter((transaction) => transaction.categoryId === REVIEW_CATEGORY_ID),
-    [currentMonthTransactions],
+    () =>
+      currentMonthTransactions.filter(
+        (transaction) =>
+          !isConfirmedBudgetTransaction(transaction, categoryNameById, REVIEW_CATEGORY_ID),
+      ),
+    [categoryNameById, currentMonthTransactions],
   );
   const currentMonthExpenses = useMemo(
     () => currentMonthTransactions.filter((transaction) => transaction.type === "expense"),
     [currentMonthTransactions],
   );
   const currentMonthIncomes = useMemo(
-    () => currentMonthTransactions.filter((transaction) => transaction.type === "income" && transaction.categoryId !== REVIEW_CATEGORY_ID),
-    [currentMonthTransactions],
+    () =>
+      currentMonthTransactions.filter(
+        (transaction) =>
+          transaction.type === "income" &&
+          isConfirmedBudgetTransaction(transaction, categoryNameById, REVIEW_CATEGORY_ID),
+      ),
+    [categoryNameById, currentMonthTransactions],
+  );
+  const confirmedCurrentMonthExpenses = useMemo(
+    () =>
+      currentMonthExpenses.filter((transaction) =>
+        isConfirmedBudgetTransaction(transaction, categoryNameById, REVIEW_CATEGORY_ID),
+      ),
+    [categoryNameById, currentMonthExpenses],
+  );
+  const confirmedMonthExpenseTotal = confirmedCurrentMonthExpenses.reduce(
+    (sum, transaction) => sum + transaction.amount,
+    0,
+  );
+  const recordedMonthExpenseTotal = currentMonthExpenses.reduce(
+    (sum, transaction) => sum + transaction.amount,
+    0,
+  );
+  const confirmedMonthIncomeTotal = currentMonthIncomes.reduce(
+    (sum, transaction) => sum + transaction.amount,
+    0,
   );
 
   const expenseByCategory = useMemo(() => {
     const rows = new Map<string, { id: string; name: string; total: number; needsReview: boolean; transactions: MoneyTransaction[] }>();
 
-    currentMonthExpenses.forEach((transaction) => {
-      const needsReview = transaction.categoryId === REVIEW_CATEGORY_ID || !categoryNameById.has(transaction.categoryId);
-      const id = needsReview ? REVIEW_CATEGORY_ID : transaction.categoryId;
-      const name = needsReview ? "Нужно распределить" : (categoryNameById.get(transaction.categoryId) ?? "Нужно распределить");
-      const current = rows.get(id) ?? { id, name, total: 0, needsReview, transactions: [] };
+    confirmedCurrentMonthExpenses.forEach((transaction) => {
+      const id = transaction.categoryId;
+      const name = categoryNameById.get(transaction.categoryId)!;
+      const current = rows.get(id) ?? { id, name, total: 0, needsReview: false, transactions: [] };
       rows.set(id, { ...current, total: current.total + transaction.amount, transactions: [...current.transactions, transaction] });
     });
 
@@ -114,10 +142,10 @@ function BudgetPage() {
       if (a.needsReview !== b.needsReview) return a.needsReview ? 1 : -1;
       return b.total - a.total;
     });
-  }, [categoryNameById, currentMonthExpenses]);
+  }, [categoryNameById, confirmedCurrentMonthExpenses]);
 
   const displayedExpenseTotal = expenseByCategory.reduce((sum, row) => sum + row.total, 0);
-  const hiddenExpenseTotal = Math.max(0, totals.monthExpenseTotal - displayedExpenseTotal);
+  const hiddenExpenseTotal = Math.max(0, confirmedMonthExpenseTotal - displayedExpenseTotal);
   const hasVisibleHiddenExpense = Math.round(hiddenExpenseTotal) > 0;
   const maxCategoryTotal = Math.max(...expenseByCategory.map((row) => row.total), hiddenExpenseTotal, 1);
   const incomeByCategory = useMemo(() => {
@@ -137,48 +165,12 @@ function BudgetPage() {
   }, [categoryNameById, currentMonthIncomes]);
   const maxIncomeCategoryTotal = Math.max(...incomeByCategory.map((row) => row.total), 1);
   const monthlyHistory = useMemo(() => {
-    const months = new Map<string, {
-      monthKey: string;
-      expense: number;
-      income: number;
-      expenseCategories: Map<string, number>;
-      incomeCategories: Map<string, number>;
-    }>();
-
-    transactions.forEach((transaction) => {
-      const monthKey = transaction.date.slice(0, 7);
-      if (!/^\d{4}-\d{2}$/.test(monthKey)) return;
-      const current = months.get(monthKey) ?? {
-        monthKey,
-        expense: 0,
-        income: 0,
-        expenseCategories: new Map<string, number>(),
-        incomeCategories: new Map<string, number>(),
-      };
-      const categoryName = categoryNameById.get(transaction.categoryId) ?? "Нужно распределить";
-
-      if (transaction.type === "expense") {
-        current.expense += transaction.amount;
-        current.expenseCategories.set(categoryName, (current.expenseCategories.get(categoryName) ?? 0) + transaction.amount);
-      } else if (transaction.categoryId !== REVIEW_CATEGORY_ID) {
-        current.income += transaction.amount;
-        current.incomeCategories.set(categoryName, (current.incomeCategories.get(categoryName) ?? 0) + transaction.amount);
-      }
-      months.set(monthKey, current);
-    });
-
-    const toRows = (values: Map<string, number>) => Array.from(values.entries())
-      .map(([name, total]) => ({ name, total }))
-      .sort((a, b) => b.total - a.total);
-
-    return Array.from(months.values())
-      .map((month) => ({
-        ...month,
-        expenseCategories: toRows(month.expenseCategories),
-        incomeCategories: toRows(month.incomeCategories),
-      }))
-      .filter((month) => month.monthKey >= HISTORY_START_MONTH)
-      .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+    return buildBudgetMonthlyHistory(
+      transactions,
+      categoryNameById,
+      REVIEW_CATEGORY_ID,
+      HISTORY_START_MONTH,
+    );
   }, [categoryNameById, transactions]);
   const completedMonths = monthlyHistory.filter((month) => month.monthKey < currentMonthKey);
   const averageMonthlyExpense = completedMonths.length
@@ -240,11 +232,11 @@ function BudgetPage() {
       .reduce((sum, account) => sum + account.balance, 0);
     if (primaryCardCashAccount) {
       updateCashAccount(primaryCardCashAccount.id, { name: "Карта / наличные", kind: "card", balance: nextBalance - otherBalance });
-      update({ cardCashExpenseBaseline: totals.monthExpenseTotal, cardCashExpenseBaselineMonth: currentMonthKey });
+      update({ cardCashExpenseBaseline: recordedMonthExpenseTotal, cardCashExpenseBaselineMonth: currentMonthKey });
       return;
     }
     addCashAccount({ id: `ca_${Date.now()}`, name: "Карта / наличные", kind: "card", balance: nextBalance });
-    update({ cardCashExpenseBaseline: totals.monthExpenseTotal, cardCashExpenseBaselineMonth: currentMonthKey });
+    update({ cardCashExpenseBaseline: recordedMonthExpenseTotal, cardCashExpenseBaselineMonth: currentMonthKey });
   };
 
   const setSafetyBalance = (nextBalance: number) => {
@@ -538,10 +530,10 @@ function BudgetPage() {
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-              Расходы: <span className="text-foreground">{formatRub(totals.monthExpenseTotal)}</span>
+              Расходы: <span className="text-foreground">{formatRub(confirmedMonthExpenseTotal)}</span>
             </div>
             <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-              Доходы: <span className="text-[color:oklch(0.7_0.1_160)]">{formatRub(totals.monthIncomeTotal)}</span>
+              Доходы: <span className="text-[color:oklch(0.7_0.1_160)]">{formatRub(confirmedMonthIncomeTotal)}</span>
             </div>
           </div>
         </div>
@@ -583,7 +575,7 @@ function BudgetPage() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--gold)]">Нужно распределить</div>
-                <div className="mt-1 text-sm text-muted-foreground">Переводы и операции без понятной статьи</div>
+                <div className="mt-1 text-sm text-muted-foreground">Не учитываются в расходах и статистике, пока не выбрана статья</div>
               </div>
               <div className="text-sm tabular text-foreground">{reviewTransactions.length}</div>
             </div>
@@ -635,7 +627,7 @@ function BudgetPage() {
                     </select>
                   ) : null}
                   <select
-                    value={transaction.categoryId}
+                    value={categoryNameById.has(transaction.categoryId) ? transaction.categoryId : REVIEW_CATEGORY_ID}
                     onChange={(event) =>
                       updateTransaction(transaction.id, {
                         categoryId: event.target.value,
@@ -672,7 +664,7 @@ function BudgetPage() {
 
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Расходы по статьям</div>
-          <div className="text-xs tabular text-muted-foreground">{formatRub(totals.monthExpenseTotal)}</div>
+          <div className="text-xs tabular text-muted-foreground">{formatRub(confirmedMonthExpenseTotal)}</div>
         </div>
         {expenseByCategory.length ? (
           <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
@@ -757,7 +749,7 @@ function BudgetPage() {
         <div className="mt-8 border-t border-border pt-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Доходы по статьям</div>
-            <div className="text-xs tabular text-[color:oklch(0.7_0.1_160)]">{formatRub(totals.monthIncomeTotal)}</div>
+            <div className="text-xs tabular text-[color:oklch(0.7_0.1_160)]">{formatRub(confirmedMonthIncomeTotal)}</div>
           </div>
 
           {incomeByCategory.length ? (
